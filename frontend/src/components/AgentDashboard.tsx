@@ -30,7 +30,7 @@ const AgentDashboard: React.FC = () => {
           className={activeSection === 'fixed-deposit' ? 'active' : ''}
           onClick={() => setActiveSection('fixed-deposit')}
         >
-          💰 Create Fixed Deposit
+          💰 Fixed Deposit
         </button>
         <button 
           className={activeSection === 'view-accounts' ? 'active' : ''}

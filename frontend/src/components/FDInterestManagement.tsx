@@ -95,12 +95,12 @@ const FDInterestManagement: React.FC = () => {
         )}
 
         <div className="recent-periods">
-          <h6>Recently Processed Periods</h6>
+          <p>Recently Processed Periods</p>
           {summary && summary.recent_periods && summary.recent_periods.length > 0 ? (
             <div className="periods-list">
               {summary.recent_periods.map((period, index) => (
                 <div key={index} className="period-item">
-                  <span>{period.period_start} to {period.period_end}</span>
+                  <span>{new Date(period.period_start).toLocaleDateString()} to {new Date(period.period_end).toLocaleDateString()}</span>
                   <small>{new Date(period.processed_at).toLocaleDateString()}</small>
                 </div>
               ))}

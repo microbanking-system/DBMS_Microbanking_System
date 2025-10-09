@@ -148,25 +148,30 @@ const FixedDepositCreation: React.FC = () => {
     }
   };
 
-  const deactivateFD = async (fdId: string) => {
-    if (!window.confirm('Are you sure you want to deactivate this Fixed Deposit? This action cannot be undone.')) {
-      return;
-    }
+  const deactivateFD = async (fdId: string, principalAmount: number, accountId: string) => {
+  if (!window.confirm(
+    `Are you sure you want to deactivate Fixed Deposit ${fdId}?\n\n` +
+    `• Principal Amount: LKR ${principalAmount.toLocaleString()}\n` +
+    `• Linked Account: ${accountId}\n\n` +
+    `This will return the principal amount to the savings account and close the FD.`
+  )) {
+    return;
+  }
 
-    try {
-      const token = localStorage.getItem('token');
-      await axios.post('/api/agent/fixed-deposits/deactivate', 
-        { fd_id: fdId },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      
-      alert('Fixed Deposit deactivated successfully');
-      // Refresh the list
-      loadExistingFDs();
-      setSearchResults(searchResults.filter(fd => fd.fd_id !== fdId));
-    } catch (error: any) {
-      alert(error.response?.data?.message || 'Failed to deactivate fixed deposit');
-    }
+  try {
+    const token = localStorage.getItem('token');
+    const response = await axios.post('/api/agent/fixed-deposits/deactivate', 
+      { fd_id: fdId },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    
+    alert(response.data.message); // This will now show the success message with details
+    // Refresh the list
+    loadExistingFDs();
+    setSearchResults(searchResults.filter(fd => fd.fd_id !== fdId));
+  } catch (error: any) {
+    alert(error.response?.data?.message || 'Failed to deactivate fixed deposit');
+  }
   };
 
   const calculateAge = (dateOfBirth: string): number => {
@@ -258,7 +263,7 @@ const FixedDepositCreation: React.FC = () => {
     
     if (formData.principal_amount <= 0) {
       newErrors.principal_amount = 'Principal amount must be greater than 0';
-    } else if (selectedAccount && formData.principal_amount > selectedAccount.balance) {
+    } else if (selectedAccount && formData.principal_amount > selectedAccount.balance  - 0.00) {
       newErrors.principal_amount = `Insufficient balance in savings account. Available: LKR ${selectedAccount.balance.toLocaleString()}`;
     }
 
@@ -307,8 +312,8 @@ const FixedDepositCreation: React.FC = () => {
         break;
     }
     
-    const interest = principal * (interestRate / 100) * years;
-    return principal + interest;
+    let m_principal: number = principal * (1 + (interestRate / 100) * years);
+    return m_principal;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -743,7 +748,7 @@ const FixedDepositCreation: React.FC = () => {
                         <button
                           type="button"
                           className="btn btn-danger btn-sm"
-                          onClick={() => deactivateFD(fd.fd_id)}
+                          onClick={() => deactivateFD(fd.fd_id, fd.fd_balance, fd.account_id)}
                         >
                           Deactivate FD
                         </button>

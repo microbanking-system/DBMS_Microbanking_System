@@ -173,9 +173,105 @@ const processMonthlyFDInterest = async () => {
       await client.query(
         `INSERT INTO fd_interest_periods (period_start, period_end, is_processed, processed_at)
          VALUES ($1, $2, true, $3)`,
-        [startDate, endDate, today]
+        [startDate, endDate, processDate]
       );
     }
+
+    // ✅ ADDED: Process matured FDs (JUST ADD THIS SECTION)
+    console.log('🔍 Checking for matured Fixed Deposits...');
+    
+    const maturedFDs = await client.query(`
+      SELECT 
+        fd.fd_id,
+        fd.fd_balance as principal_amount,
+        fd.fd_plan_id,
+        fd.auto_renewal_status,
+        a.account_id as linked_account_id
+      FROM fixeddeposit fd
+      JOIN account a ON fd.fd_id = a.fd_id
+      WHERE fd.fd_status = 'Active' 
+      AND fd.maturity_date <= $1
+    `, [processDate]);
+
+    let maturedCount = 0;
+    let totalPrincipalReturned = 0;
+
+    for (const fd of maturedFDs.rows) {
+      try {
+        // Return principal amount to savings account
+        await client.query(
+          'UPDATE account SET balance = balance + $1 WHERE account_id = $2',
+          [fd.principal_amount, fd.linked_account_id]
+        );
+
+        // Create transaction for principal return
+        const transactionCount = await client.query('SELECT COUNT(*) as count FROM transaction');
+        const transactionId = `TXN${String(parseInt(transactionCount.rows[0].count) + 1).padStart(3, '0')}`;
+
+        const adminUser = await client.query(
+          "SELECT employee_id FROM employee WHERE role = 'Admin' LIMIT 1"
+        );
+        const employeeId = adminUser.rows.length > 0 ? adminUser.rows[0].employee_id : 'A001';
+
+        await client.query(
+          `INSERT INTO transaction (transaction_id, transaction_type, amount, time, description, account_id, employee_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [transactionId, 'Deposit', fd.principal_amount, today,
+           `FD Maturity - Principal Return`, fd.linked_account_id, employeeId]
+        );
+
+        if (fd.auto_renewal_status === 'True') {
+          // Auto-renew: Update maturity date
+          const newMaturityDate = new Date(today);
+          const planResult = await client.query(
+            'SELECT fd_options FROM fdplan WHERE fd_plan_id = $1',
+            [fd.fd_plan_id]
+          );
+          
+          const planOption = planResult.rows[0].fd_options;
+          switch (planOption) {
+            case '6 months':
+              newMaturityDate.setMonth(today.getMonth() + 6);
+              break;
+            case '1 year':
+              newMaturityDate.setFullYear(today.getFullYear() + 1);
+              break;
+            case '3 years':
+              newMaturityDate.setFullYear(today.getFullYear() + 3);
+              break;
+          }
+
+          await client.query(
+            `UPDATE fixeddeposit 
+             SET open_date = $1, maturity_date = $2 
+             WHERE fd_id = $3`,
+            [today, newMaturityDate, fd.fd_id]
+          );
+          console.log(`🔄 Auto-renewed FD ${fd.fd_id}`);
+        } else {
+          // Close the FD
+          await client.query(
+            'UPDATE fixeddeposit SET fd_status = $1 WHERE fd_id = $2',
+            ['Closed', fd.fd_id]
+          );
+          await client.query(
+            'UPDATE account SET fd_id = NULL WHERE fd_id = $1',
+            [fd.fd_id]
+          );
+          console.log(`🏁 Closed matured FD ${fd.fd_id}`);
+        }
+
+        maturedCount++;
+        totalPrincipalReturned += parseFloat(fd.principal_amount);
+
+      } catch (error) {
+        console.error(`❌ Failed to process matured FD ${fd.fd_id}:`, error);
+      }
+    }
+
+    console.log(`✅ Matured FDs processed: ${maturedCount}`);
+    console.log(`💰 Total Principal Returned: LKR ${totalPrincipalReturned.toLocaleString()}`);
+    // ✅ END OF ADDED SECTION
 
     await client.query('COMMIT');
     
@@ -199,7 +295,6 @@ const processMonthlyFDInterest = async () => {
     client.release();
   }
 };
-
 // Schedule to run on 1st of every month at 3 AM (fully automatic)
 cron.schedule('0 3 1 * *', processMonthlyFDInterest);
 
@@ -1960,7 +2055,7 @@ app.get('/api/agent/fixed-deposits/search/:fdId', async (req, res) => {
   }
 });
 
-// Deactivate fixed deposit
+// Deactivate fixed deposit - FIXED VERSION (returns principal amount)
 app.post('/api/agent/fixed-deposits/deactivate', async (req, res) => {
   // Verify agent authorization
   const token = req.headers.authorization?.split(' ')[1];
@@ -1998,6 +2093,36 @@ app.post('/api/agent/fixed-deposits/deactivate', async (req, res) => {
 
       const fd = fdResult.rows[0];
 
+      // Get the linked account ID
+      const accountResult = await client.query(
+        'SELECT account_id FROM account WHERE fd_id = $1',
+        [fd_id]
+      );
+      
+      if (accountResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: 'Linked savings account not found' });
+      }
+
+      const accountId = accountResult.rows[0].account_id;
+
+      // ✅ CRITICAL FIX: Return principal amount to savings account
+      await client.query(
+        'UPDATE account SET balance = balance + $1 WHERE account_id = $2',
+        [fd.fd_balance, accountId]
+      );
+
+      // ✅ Create transaction record for principal return
+      const transactionCount = await client.query('SELECT COUNT(*) as count FROM transaction');
+      const transactionId = `TXN${String(parseInt(transactionCount.rows[0].count) + 1).padStart(3, '0')}`;
+
+      await client.query(
+        `INSERT INTO transaction (transaction_id, transaction_type, amount, time, description, account_id, employee_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [transactionId, 'Deposit', fd.fd_balance, new Date(), 
+         `FD Deactivation - Principal Return (${fd_id})`, accountId, decoded.id]
+      );
+
       // Update FD status to Closed
       await client.query(
         'UPDATE fixeddeposit SET fd_status = $1 WHERE fd_id = $2',
@@ -2013,8 +2138,10 @@ app.post('/api/agent/fixed-deposits/deactivate', async (req, res) => {
       await client.query('COMMIT');
       
       res.json({ 
-        message: 'Fixed deposit deactivated successfully',
-        fd_id: fd_id
+        message: 'Fixed deposit deactivated successfully. Principal amount returned to savings account.',
+        fd_id: fd_id,
+        principal_returned: fd.fd_balance,
+        account_id: accountId
       });
     } catch (error) {
       await client.query('ROLLBACK');
@@ -2028,7 +2155,6 @@ app.post('/api/agent/fixed-deposits/deactivate', async (req, res) => {
     res.status(401).json({ message: 'Invalid or expired token' });
   }
 });
-
 // Get all accounts with basic information
 app.get('/api/agent/all-accounts', async (req, res) => {
   // Verify agent authorization
