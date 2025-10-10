@@ -133,7 +133,7 @@ const AccountCreation: React.FC = () => {
     
     if (formData.initial_deposit < 0) {
       newErrors.initial_deposit = 'Initial deposit cannot be negative';
-    } else if (selectedPlan && formData.initial_deposit < selectedPlan.min_balance) {
+    } else if (selectedPlan && formData.initial_deposit < selectedPlan.min_balance-0.00) {
       newErrors.initial_deposit = `Minimum balance for ${selectedPlan.plan_type} plan is LKR ${selectedPlan.min_balance.toLocaleString()}`;
     }
 

@@ -194,7 +194,7 @@ const TransactionProcessing: React.FC = () => {
           const newBalance = selectedAccount.balance - amount;
           
           // Check if withdrawal would violate minimum balance requirement
-          if (newBalance < minBalance) {
+          if (newBalance < minBalance-0.00) {
             const maxWithdrawal = selectedAccount.balance - minBalance;
             newErrors.amount = `Withdrawal would violate minimum balance requirement. Maximum withdrawal: LKR ${maxWithdrawal.toLocaleString()}`;
           }
