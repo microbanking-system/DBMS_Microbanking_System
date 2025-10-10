@@ -1807,9 +1807,12 @@ app.post('/api/agent/fixed-deposits/create', async (req, res) => {
         return res.status(400).json({ message: 'Customer must be at least 18 years old for Fixed Deposit' });
       }
 
-      // Verify account exists and has sufficient balance
+      // Verify account exists and has sufficient balance (WITH MINIMUM BALANCE CHECK)
       const accountResult = await client.query(
-        'SELECT * FROM account WHERE account_id = $1 AND account_status = $2',
+        `SELECT a.*, sp.min_balance, sp.plan_type 
+         FROM account a 
+         JOIN savingplan sp ON a.saving_plan_id = sp.saving_plan_id 
+         WHERE a.account_id = $1 AND a.account_status = $2`,
         [account_id, 'Active']
       );
       if (accountResult.rows.length === 0) {
@@ -1818,9 +1821,14 @@ app.post('/api/agent/fixed-deposits/create', async (req, res) => {
       }
 
       const account = accountResult.rows[0];
-      if (parseFloat(account.balance) < parseFloat(principal_amount)) {
+      const minBalance = parseFloat(account.min_balance);
+      const availableForFD = parseFloat(account.balance) - minBalance;
+
+      if (parseFloat(principal_amount) > availableForFD) {
         await client.query('ROLLBACK');
-        return res.status(400).json({ message: 'Insufficient balance in savings account' });
+        return res.status(400).json({ 
+          message: `Insufficient balance. Maximum FD amount: LKR ${availableForFD.toFixed(2)}. Minimum balance of LKR ${minBalance.toFixed(2)} must remain in savings account for ${account.plan_type} plan` 
+        });
       }
 
       // Verify FD plan exists
@@ -1903,7 +1911,6 @@ app.post('/api/agent/fixed-deposits/create', async (req, res) => {
     res.status(401).json({ message: 'Invalid or expired token' });
   }
 });
-
 // Get accounts with FD information (updated to exclude joint accounts)
 app.get('/api/agent/accounts-with-fd', async (req, res) => {
   // Verify agent authorization
@@ -1920,21 +1927,30 @@ app.get('/api/agent/accounts-with-fd', async (req, res) => {
 
     const client = await pool.connect();
     try {
+      
       const result = await client.query(`
-        SELECT DISTINCT
+        SELECT 
           a.account_id,
           a.balance,
           a.account_status,
           a.fd_id,
           sp.plan_type,
-          STRING_AGG(DISTINCT c.first_name || ' ' || c.last_name, ', ') as customer_names,
-          COUNT(DISTINCT t.customer_id) as customer_count
+          sp.min_balance,
+          sp.interest,
+          (
+            SELECT STRING_AGG(c.first_name || ' ' || c.last_name, ', ')
+            FROM takes t2
+            JOIN customer c ON t2.customer_id = c.customer_id
+            WHERE t2.account_id = a.account_id
+          ) as customer_names,
+          (
+            SELECT COUNT(DISTINCT customer_id)
+            FROM takes t3
+            WHERE t3.account_id = a.account_id
+          ) as customer_count
         FROM account a
-        JOIN takes t ON a.account_id = t.account_id
-        JOIN customer c ON t.customer_id = c.customer_id
         JOIN savingplan sp ON a.saving_plan_id = sp.saving_plan_id
         WHERE a.account_status = 'Active'
-        GROUP BY a.account_id, a.balance, a.account_status, a.fd_id, sp.plan_type
         ORDER BY a.account_id
       `);
       

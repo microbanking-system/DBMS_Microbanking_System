@@ -20,6 +20,8 @@ interface Account {
   balance: number;
   customer_names: string;
   fd_id: string | null;
+  min_balance: number;
+  interest: number;
   plan_type: string; // Add plan_type to identify joint accounts
   customer_count: number; // Add customer count
 }
@@ -263,8 +265,17 @@ const FixedDepositCreation: React.FC = () => {
     
     if (formData.principal_amount <= 0) {
       newErrors.principal_amount = 'Principal amount must be greater than 0';
-    } else if (selectedAccount && formData.principal_amount > selectedAccount.balance  - 0.00) {
-      newErrors.principal_amount = `Insufficient balance in savings account. Available: LKR ${selectedAccount.balance.toLocaleString()}`;
+    } else if (selectedAccount) {
+      // Get the minimum balance from the selected account's saving plan
+      const savingPlan = accounts.find(acc => acc.account_id === formData.account_id);
+      if (savingPlan) {
+        const minBalance = savingPlan.min_balance || 0; // Use the actual min_balance from savingplan table
+        const availableForFD = selectedAccount.balance - minBalance;
+        
+        if (formData.principal_amount > availableForFD) {
+          newErrors.principal_amount = `Insufficient balance. Maximum FD amount: LKR ${availableForFD.toLocaleString()} (Minimum balance of LKR ${minBalance.toLocaleString()} must remain in savings account for ${savingPlan.plan_type} plan)`;
+        }
+      }
     }
 
     // Age validation for FD
@@ -587,7 +598,7 @@ const FixedDepositCreation: React.FC = () => {
                 {errors.principal_amount && <span className="error-text">{errors.principal_amount}</span>}
                 {selectedAccount && (
                   <small className="form-help">
-                    Maximum amount: LKR {selectedAccount.balance.toLocaleString()}
+                    Maximum amount: LKR {(selectedAccount.balance-selectedAccount.min_balance).toLocaleString()}
                   </small>
                 )}
               </div>

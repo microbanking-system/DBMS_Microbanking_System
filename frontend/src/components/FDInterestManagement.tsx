@@ -112,7 +112,7 @@ const FDInterestManagement: React.FC = () => {
       </div>
 
       <div className="manual-control-section">
-        <h5>Manual Control (For Testing Only)</h5>
+        <p>Manual Control (For Testing Only)</p>
         <p className="warning-text">
           ⚠️ Use only for testing or emergency processing. The system runs automatically every month.
         </p>
