@@ -45,7 +45,7 @@ const AdminDashboard: React.FC = () => {
           <div className="reports-section">
             <h4>Reports</h4>
             <p>View system reports and analytics.</p>
-            {/* Your existing reports content */}
+            {/* Existing reports content */}
           </div>
         )}
       </div>

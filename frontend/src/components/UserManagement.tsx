@@ -279,6 +279,7 @@ const UserManagement: React.FC = () => {
                 <tr>
                   <th>Employee ID</th>
                   <th>Name</th>
+                  <th>Gender</th>
                   <th>Username</th>
                   <th>Role</th>
                   <th>NIC</th>
@@ -296,8 +297,10 @@ const UserManagement: React.FC = () => {
                     <td>
                       <div className="user-name">
                         <strong>{user.first_name} {user.last_name}</strong>
-                        <span className="user-gender">{user.gender}</span>
                       </div>
+                    </td>
+                    <td>
+                      <span className="user-gender">{user.gender}</span>  {/* ✅ Move gender to separate column */}
                     </td>
                     <td>
                       <span className="username">{user.username}</span>
