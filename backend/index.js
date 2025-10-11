@@ -2018,8 +2018,8 @@ app.get('/api/agent/fixed-deposits', async (req, res) => {
   }
 });
 
-// Search fixed deposits by FD ID
-app.get('/api/agent/fixed-deposits/search/:fdId', async (req, res) => {
+// Enhanced search fixed deposits - supports FD ID, customer name, and account ID
+app.get('/api/agent/fixed-deposits/search', async (req, res) => {
   // Verify agent authorization
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) {
@@ -2032,7 +2032,12 @@ app.get('/api/agent/fixed-deposits/search/:fdId', async (req, res) => {
       return res.status(403).json({ message: 'Agent access required' });
     }
 
-    const { fdId } = req.params;
+    const { query } = req.query;
+    
+    if (!query) {
+      return res.status(400).json({ message: 'Search query is required' });
+    }
+
     const client = await pool.connect();
     try {
       const result = await client.query(`
@@ -2052,11 +2057,17 @@ app.get('/api/agent/fixed-deposits/search/:fdId', async (req, res) => {
         JOIN account a ON fd.fd_id = a.fd_id
         JOIN takes t ON a.account_id = t.account_id
         JOIN customer c ON t.customer_id = c.customer_id
-        WHERE fd.fd_id ILIKE $1
+        WHERE 
+          fd.fd_id ILIKE $1 OR 
+          a.account_id ILIKE $1 OR
+          c.first_name ILIKE $1 OR 
+          c.last_name ILIKE $1 OR
+          (c.first_name || ' ' || c.last_name) ILIKE $1 OR
+          (c.last_name || ' ' || c.first_name) ILIKE $1
         GROUP BY fd.fd_id, fd.fd_balance, fd.fd_status, fd.open_date, fd.maturity_date, 
                  fd.auto_renewal_status, fp.fd_options, fp.interest, a.account_id
         ORDER BY fd.open_date DESC
-      `, [`%${fdId}%`]);
+      `, [`%${query}%`]);
       
       res.json({ fixed_deposits: result.rows });
     } catch (error) {
@@ -2300,6 +2311,190 @@ app.get('/api/agent/accounts/:accountId/details', async (req, res) => {
     } catch (error) {
       console.error('Database error:', error);
       res.status(500).json({ message: 'Database error' });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Authentication error:', error);
+    res.status(401).json({ message: 'Invalid or expired token' });
+  }
+});
+
+// Search accounts by account ID or customer name
+app.get('/api/agent/accounts/search/:searchTerm', async (req, res) => {
+  // Verify agent authorization
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Authorization required' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, 'your_jwt_secret');
+    if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
+      return res.status(403).json({ message: 'Agent access required' });
+    }
+
+    const { searchTerm } = req.params;
+    const client = await pool.connect();
+    try {
+      const result = await client.query(`
+        SELECT 
+          a.account_id,
+          a.balance,
+          a.account_status,
+          a.open_date,
+          a.branch_id,
+          a.saving_plan_id,
+          a.fd_id,
+          sp.plan_type,
+          sp.interest,
+          sp.min_balance,
+          STRING_AGG(DISTINCT c.first_name || ' ' || c.last_name, ', ') as customer_names,
+          COUNT(DISTINCT t.customer_id) as customer_count,
+          b.name as branch_name
+        FROM account a
+        JOIN takes t ON a.account_id = t.account_id
+        JOIN customer c ON t.customer_id = c.customer_id
+        JOIN savingplan sp ON a.saving_plan_id = sp.saving_plan_id
+        JOIN branch b ON a.branch_id = b.branch_id
+        WHERE a.account_id ILIKE $1 OR c.first_name ILIKE $1 OR c.last_name ILIKE $1
+        GROUP BY a.account_id, a.balance, a.account_status, a.open_date, a.branch_id, 
+                 a.saving_plan_id, a.fd_id, sp.plan_type, sp.interest, sp.min_balance, b.name
+        ORDER BY a.open_date DESC
+      `, [`%${searchTerm}%`]);
+      
+      res.json({ accounts: result.rows });
+    } catch (error) {
+      console.error('Database error:', error);
+      res.status(500).json({ message: 'Database error' });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Authentication error:', error);
+    res.status(401).json({ message: 'Invalid or expired token' });
+  }
+});
+
+// Deactivate savings account - UPDATED to automatically withdraw full balance
+app.post('/api/agent/accounts/deactivate', async (req, res) => {
+  // Verify agent authorization
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Authorization required' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, 'your_jwt_secret');
+    if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
+      return res.status(403).json({ message: 'Agent access required' });
+    }
+
+    const { account_id, reason } = req.body;
+
+    if (!account_id) {
+      return res.status(400).json({ message: 'Account ID is required' });
+    }
+
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      // Check if account exists and is active
+      const accountResult = await client.query(
+        'SELECT * FROM account WHERE account_id = $1 AND account_status = $2',
+        [account_id, 'Active']
+      );
+
+      if (accountResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: 'Active account not found' });
+      }
+
+      const account = accountResult.rows[0];
+
+      // Check if account has an active FD
+      if (account.fd_id) {
+        const fdResult = await client.query(
+          'SELECT * FROM fixeddeposit WHERE fd_id = $1 AND fd_status = $2',
+          [account.fd_id, 'Active']
+        );
+        
+        if (fdResult.rows.length > 0) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ 
+            message: 'Cannot deactivate account with active Fixed Deposit. Please deactivate the FD first.' 
+          });
+        }
+      }
+
+      let withdrawalAmount = parseFloat(account.balance);
+      let withdrawalTransactionId = null;
+
+      // If account has balance, create withdrawal transaction
+      if (withdrawalAmount > 0) {
+        // Generate transaction ID for withdrawal
+        const transactionCount = await client.query('SELECT COUNT(*) as count FROM transaction');
+        withdrawalTransactionId = `TXN${String(parseInt(transactionCount.rows[0].count) + 1).padStart(3, '0')}`;
+
+        // Create withdrawal transaction record
+        await client.query(
+          `INSERT INTO transaction (transaction_id, transaction_type, amount, time, description, account_id, employee_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [withdrawalTransactionId, 'Withdrawal', withdrawalAmount, new Date(), 
+           `Account Closure - Full Balance Withdrawal - ${reason || 'No reason provided'}`, account_id, decoded.id]
+        );
+
+        // Update account balance to 0
+        await client.query(
+          'UPDATE account SET balance = $1 WHERE account_id = $2',
+          [0, account_id]
+        );
+      }
+
+      // Update account status to Inactive
+      await client.query(
+        'UPDATE account SET account_status = $1 WHERE account_id = $2',
+        ['Inactive', account_id]
+      );
+
+      // Create additional transaction record for account deactivation (audit trail)
+      const deactivationTransactionCount = await client.query('SELECT COUNT(*) as count FROM transaction');
+      const deactivationTransactionId = `TXN${String(parseInt(deactivationTransactionCount.rows[0].count) + 1).padStart(3, '0')}`;
+
+      await client.query(
+        `INSERT INTO transaction (transaction_id, transaction_type, amount, time, description, account_id, employee_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [deactivationTransactionId, 'Withdrawal', 0, new Date(), 
+         `Account Deactivated - ${reason || 'No reason provided'}`, account_id, decoded.id]
+      );
+
+      await client.query('COMMIT');
+      
+      const responseData = { 
+        message: 'Account deactivated successfully',
+        account_id: account_id,
+        previous_status: 'Active',
+        new_status: 'Inactive',
+        previous_balance: withdrawalAmount,
+        final_balance: 0
+      };
+
+      // Add withdrawal info if applicable
+      if (withdrawalAmount > 0) {
+        responseData.withdrawal_amount = withdrawalAmount;
+        responseData.withdrawal_transaction_id = withdrawalTransactionId;
+        responseData.message += ` Full balance of LKR ${withdrawalAmount.toLocaleString()} withdrawn and account closed.`;
+      } else {
+        responseData.message += ' Account closed with zero balance.';
+      }
+
+      res.json(responseData);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Database error:', error);
+      res.status(500).json({ message: 'Database error: ' + error.message });
     } finally {
       client.release();
     }

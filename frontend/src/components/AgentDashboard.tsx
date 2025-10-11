@@ -24,7 +24,7 @@ const AgentDashboard: React.FC = () => {
           className={activeSection === 'account' ? 'active' : ''}
           onClick={() => setActiveSection('account')}
         >
-          🏦 Create Savings Account
+          🏦 Savings Account
         </button>
         <button 
           className={activeSection === 'fixed-deposit' ? 'active' : ''}

@@ -95,6 +95,11 @@ const FixedDepositCreation: React.FC = () => {
     }
   }, [activeTab]);
 
+  // Sync search results with existing FDs
+  useEffect(() => {
+    setSearchResults(existingFDs);
+  }, [existingFDs]);
+
   // Search for customers
   useEffect(() => {
     if (customerSearchTerm.trim()) {
@@ -158,18 +163,35 @@ const FixedDepositCreation: React.FC = () => {
     setIsSearching(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`/api/agent/fixed-deposits/search/${searchFdId}`, {
+      const response = await axios.get(`/api/agent/fixed-deposits/search`, {
+        params: { query: searchFdId },
         headers: { Authorization: `Bearer ${token}` }
       });
       setSearchResults(response.data.fixed_deposits);
     } catch (error: any) {
       console.error('Search failed:', error);
-      setSearchResults([]);
+      // Enhanced client-side search as fallback
+      const searchTerm = searchFdId.toLowerCase();
+      const results = existingFDs.filter(fd => {
+        // Check FD ID
+        if (fd.fd_id.toLowerCase().includes(searchTerm)) return true;
+        
+        // Check account ID
+        if (fd.account_id.toLowerCase().includes(searchTerm)) return true;
+        
+        // Check customer names (handle multiple customers)
+        if (fd.customer_names.toLowerCase().includes(searchTerm)) return true;
+        
+        // Check individual customer names in case of multiple customers
+        const customerNames = fd.customer_names.split(',').map(name => name.trim().toLowerCase());
+        return customerNames.some(name => name.includes(searchTerm));
+      });
+      setSearchResults(results);
     } finally {
       setIsSearching(false);
     }
   };
-
+  
   const deactivateFD = async (fdId: string, principalAmount: number, accountId: string) => {
   if (!window.confirm(
     `Are you sure you want to deactivate Fixed Deposit ${fdId}?\n\n` +
@@ -793,13 +815,14 @@ const FixedDepositCreation: React.FC = () => {
           </form>
         </div>
       ) : (
-        // ... (Manage tab remains the same as previous implementation)
+        
+        // Manage Existing FDs Tab
         <div className="fd-management">
           <div className="search-section">
             <div className="search-box">
               <input
                 type="text"
-                placeholder="Search by FD Account Number..."
+                placeholder="Search by FD Account Number, Customer Name, or Savings Account..."
                 value={searchFdId}
                 onChange={(e) => setSearchFdId(e.target.value)}
                 className="search-input"
@@ -826,14 +849,18 @@ const FixedDepositCreation: React.FC = () => {
           </div>
 
           <div className="fd-list">
-            <h5>Fixed Deposit Accounts</h5>
-            {(searchFdId ? searchResults : existingFDs).length === 0 ? (
+            <h5>Fixed Deposit Accounts ({searchResults.length})</h5>
+            
+            {searchResults.length === 0 ? (
               <div className="no-data">
-                No fixed deposit accounts found.
+                {searchFdId ? 
+                  `No fixed deposits found matching "${searchFdId}"` : 
+                  'No fixed deposit accounts found.'
+                }
               </div>
             ) : (
               <div className="fd-grid">
-                {(searchFdId ? searchResults : existingFDs).map(fd => (
+                {searchResults.map(fd => (
                   <div key={fd.fd_id} className="fd-card">
                     <div className="fd-header">
                       <h6>FD Account: {fd.fd_id}</h6>
