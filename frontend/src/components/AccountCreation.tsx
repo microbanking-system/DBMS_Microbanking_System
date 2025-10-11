@@ -47,6 +47,9 @@ const AccountCreation: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<Customer[]>([]);
   const [showSearch, setShowSearch] = useState(false);
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [customerSearchResults, setCustomerSearchResults] = useState<Customer[]>([]);
+  const [showCustomerSearch, setShowCustomerSearch] = useState(false);
   
   const [formData, setFormData] = useState<AccountFormData>({
     customer_id: '',
@@ -86,6 +89,21 @@ const AccountCreation: React.FC = () => {
     }
   };
 
+  // Search for customers
+  useEffect(() => {
+    if (customerSearchTerm.trim()) {
+      const results = customers.filter(customer => 
+        customer.first_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+        customer.last_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+        customer.nic.includes(customerSearchTerm) ||
+        customer.customer_id.toLowerCase().includes(customerSearchTerm.toLowerCase())
+      );
+      setCustomerSearchResults(results.slice(0, 5)); // Limit to 5 results
+    } else {
+      setCustomerSearchResults([]);
+    }
+  }, [customerSearchTerm, customers]);
+
   // Search for joint holders
   useEffect(() => {
     if (searchTerm.trim()) {
@@ -116,11 +134,34 @@ const AccountCreation: React.FC = () => {
     return age;
   };
 
+  const getAgeRequirement = (planType: string): number => {
+    switch (planType.toLowerCase()) {
+      case 'senior':
+        return 60;
+      case 'joint':
+        return 18;
+      case 'children':
+        return 0; // No minimum age for children accounts
+      case 'student':
+        return 5; // Example: Student accounts might require at least 5 years
+      default:
+        return 18; // Default adult account
+    }
+  };
+
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
     
     if (!formData.customer_id) {
       newErrors.customer_id = 'Please select a customer';
+    } else if (selectedCustomer && selectedPlan) {
+      // Validate age requirement for primary account holder
+      const customerAge = calculateAge(selectedCustomer.date_of_birth);
+      const requiredAge = getAgeRequirement(selectedPlan.plan_type);
+      
+      if (customerAge < requiredAge) {
+        newErrors.customer_id = `${selectedPlan.plan_type} account requires account holder to be at least ${requiredAge} years old. Current age: ${customerAge}`;
+      }
     }
     
     if (!formData.saving_plan_id) {
@@ -144,9 +185,13 @@ const AccountCreation: React.FC = () => {
       }
       
       // Validate age for joint holders
-      const underageJointHolder = jointHolders.find(holder => calculateAge(holder.date_of_birth) < 18);
+      const underageJointHolder = jointHolders.find(holder => {
+        const holderAge = calculateAge(holder.date_of_birth);
+        return holderAge < 18;
+      });
+      
       if (underageJointHolder) {
-        newErrors.joint_holders = `Joint holder ${underageJointHolder.first_name} ${underageJointHolder.last_name} must be at least 18 years old`;
+        newErrors.joint_holders = `Joint holder ${underageJointHolder.first_name} ${underageJointHolder.last_name} must be at least 18 years old. Current age: ${calculateAge(underageJointHolder.date_of_birth)}`;
       }
     }
     
@@ -185,6 +230,9 @@ const AccountCreation: React.FC = () => {
       setSearchTerm('');
       setSearchResults([]);
       setShowSearch(false);
+      setCustomerSearchTerm('');
+      setCustomerSearchResults([]);
+      setShowCustomerSearch(false);
       setErrors({});
     } catch (error: any) {
       alert(error.response?.data?.message || 'Failed to create account');
@@ -209,11 +257,8 @@ const AccountCreation: React.FC = () => {
       });
     }
 
-    // Update selected customer and plan when they change
-    if (name === 'customer_id') {
-      const customer = customers.find(c => c.customer_id === value);
-      setSelectedCustomer(customer || null);
-    } else if (name === 'saving_plan_id') {
+    // Update selected plan when it changes
+    if (name === 'saving_plan_id') {
       const plan = savingPlans.find(p => p.saving_plan_id === value);
       setSelectedPlan(plan || null);
       // Clear joint holders if plan is changed from Joint to something else
@@ -222,6 +267,35 @@ const AccountCreation: React.FC = () => {
         setShowSearch(false);
       }
     }
+  };
+
+  const selectCustomer = (customer: Customer) => {
+    setFormData(prev => ({
+      ...prev,
+      customer_id: customer.customer_id
+    }));
+    setSelectedCustomer(customer);
+    setCustomerSearchTerm('');
+    setCustomerSearchResults([]);
+    setShowCustomerSearch(false);
+    
+    // Clear customer selection error
+    if (errors.customer_id) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.customer_id;
+        return newErrors;
+      });
+    }
+  };
+
+  const removeSelectedCustomer = () => {
+    setFormData(prev => ({
+      ...prev,
+      customer_id: ''
+    }));
+    setSelectedCustomer(null);
+    setCustomerSearchTerm('');
   };
 
   const addJointHolder = (customer: Customer) => {
@@ -238,7 +312,17 @@ const AccountCreation: React.FC = () => {
   };
 
   const getPlanDescription = (plan: SavingPlan) => {
-    return `${plan.plan_type} Plan - ${plan.interest}% interest, Min: LKR ${plan.min_balance.toLocaleString()}`;
+    const ageRequirement = getAgeRequirement(plan.plan_type);
+    const ageText = ageRequirement > 0 ? `, Min Age: ${ageRequirement}+` : '';
+    return `${plan.plan_type} Plan - ${plan.interest}% interest, Min: LKR ${plan.min_balance.toLocaleString()}${ageText}`;
+  };
+
+  const getAgeBadge = (age: number, planType: string) => {
+    const requiredAge = getAgeRequirement(planType);
+    if (age < requiredAge) {
+      return <span className="age-badge age-invalid">Age: {age} (Min: {requiredAge}+)</span>;
+    }
+    return <span className="age-badge age-valid">Age: {age}</span>;
   };
 
   if (isLoadingData) {
@@ -280,36 +364,100 @@ const AccountCreation: React.FC = () => {
             <h4>Customer Selection</h4>
             <div className="form-group">
               <label>Select Customer *</label>
-              <select
-                name="customer_id"
-                value={formData.customer_id}
-                onChange={handleInputChange}
-                required
-                className={errors.customer_id ? 'error' : ''}
-              >
-                <option value="">Choose a customer...</option>
-                {customers.map(customer => (
-                  <option key={customer.customer_id} value={customer.customer_id}>
-                    {customer.first_name} {customer.last_name} (NIC: {customer.nic}) - {customer.customer_id}
-                  </option>
-                ))}
-              </select>
-              {errors.customer_id && <span className="error-text">{errors.customer_id}</span>}
               
-              {selectedCustomer && (
-                <div className="customer-info-card">
-                  <h5>Primary Account Holder</h5>
-                  <p><strong>Name:</strong> {selectedCustomer.first_name} {selectedCustomer.last_name}</p>
-                  <p><strong>Customer ID:</strong> {selectedCustomer.customer_id}</p>
-                  <p><strong>NIC:</strong> {selectedCustomer.nic}</p>
-                  <p><strong>Age:</strong> {calculateAge(selectedCustomer.date_of_birth)} years</p>
+              {selectedCustomer ? (
+                <div className="selected-customer-card">
+                  <div className="customer-info">
+                    <strong>{selectedCustomer.first_name} {selectedCustomer.last_name}</strong>
+                    <span>ID: {selectedCustomer.customer_id} | NIC: {selectedCustomer.nic}</span>
+                    {selectedPlan && (
+                      <div className="age-validation">
+                        {getAgeBadge(calculateAge(selectedCustomer.date_of_birth), selectedPlan.plan_type)}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    onClick={removeSelectedCustomer}
+                  >
+                    Change
+                  </button>
+                </div>
+              ) : (
+                <div className="customer-search-section">
+                  {!showCustomerSearch ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-block"
+                      onClick={() => setShowCustomerSearch(true)}
+                    >
+                      🔍 Search Customer
+                    </button>
+                  ) : (
+                    <div className="search-customer">
+                      <div className="search-box">
+                        <input
+                          type="text"
+                          placeholder="Search customers by name, NIC, or ID..."
+                          value={customerSearchTerm}
+                          onChange={(e) => setCustomerSearchTerm(e.target.value)}
+                          className="search-input"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => {
+                            setShowCustomerSearch(false);
+                            setCustomerSearchTerm('');
+                            setCustomerSearchResults([]);
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                      
+                      {customerSearchResults.length > 0 && (
+                        <div className="search-results">
+                          {customerSearchResults.map(customer => (
+                            <div 
+                              key={customer.customer_id} 
+                              className="search-result-item"
+                              onClick={() => selectCustomer(customer)}
+                            >
+                              <div className="customer-info">
+                                <strong>{customer.first_name} {customer.last_name}</strong>
+                                <span>ID: {customer.customer_id} | NIC: {customer.nic} | Age: {calculateAge(customer.date_of_birth)}</span>
+                              </div>
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-sm"
+                              >
+                                Select
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {customerSearchTerm && customerSearchResults.length === 0 && (
+                        <div className="no-results">
+                          No customers found matching your search.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
+              
+              {errors.customer_id && <span className="error-text">{errors.customer_id}</span>}
             </div>
           </div>
 
           <div className="form-section">
             <h4>Account Details</h4>
+            
             <div className="form-row">
               <div className="form-group">
                 <label>Saving Plan *</label>
@@ -327,6 +475,7 @@ const AccountCreation: React.FC = () => {
                     </option>
                   ))}
                 </select>
+                
                 {errors.saving_plan_id && <span className="error-text">{errors.saving_plan_id}</span>}
               </div>
 
@@ -391,7 +540,8 @@ const AccountCreation: React.FC = () => {
                       <div key={holder.customer_id} className="joint-holder-card">
                         <div className="holder-info">
                           <strong>{holder.first_name} {holder.last_name}</strong>
-                          <span>ID: {holder.customer_id} | NIC: {holder.nic} | Age: {calculateAge(holder.date_of_birth)}</span>
+                          <span>ID: {holder.customer_id} | NIC: {holder.nic}</span>
+                          {getAgeBadge(calculateAge(holder.date_of_birth), 'Joint')}
                         </div>
                         <button
                           type="button"
@@ -444,14 +594,16 @@ const AccountCreation: React.FC = () => {
                             <div key={customer.customer_id} className="search-result-item">
                               <div className="customer-info">
                                 <strong>{customer.first_name} {customer.last_name}</strong>
-                                <span>ID: {customer.customer_id} | NIC: {customer.nic} | Age: {calculateAge(customer.date_of_birth)}</span>
+                                <span>ID: {customer.customer_id} | NIC: {customer.nic}</span>
+                                {getAgeBadge(calculateAge(customer.date_of_birth), 'Joint')}
                               </div>
                               <button
                                 type="button"
                                 className="btn btn-primary btn-sm"
                                 onClick={() => addJointHolder(customer)}
+                                disabled={calculateAge(customer.date_of_birth) < 18}
                               >
-                                Add
+                                {calculateAge(customer.date_of_birth) < 18 ? 'Under 18' : 'Add'}
                               </button>
                             </div>
                           ))}
@@ -489,6 +641,10 @@ const AccountCreation: React.FC = () => {
                     <span>Minimum Balance:</span>
                     <strong>LKR {selectedPlan.min_balance.toLocaleString()}</strong>
                   </div>
+                  <div className="summary-item">
+                    <span>Age Requirement:</span>
+                    <strong>{getAgeRequirement(selectedPlan.plan_type)}+ years</strong>
+                  </div>
                   {selectedPlan.plan_type === 'Joint' && (
                     <div className="summary-item">
                       <span>Joint Holders:</span>
@@ -517,6 +673,9 @@ const AccountCreation: React.FC = () => {
                 setSearchTerm('');
                 setSearchResults([]);
                 setShowSearch(false);
+                setCustomerSearchTerm('');
+                setCustomerSearchResults([]);
+                setShowCustomerSearch(false);
                 setErrors({});
               }}
             >

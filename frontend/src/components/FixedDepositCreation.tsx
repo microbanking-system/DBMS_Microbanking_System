@@ -70,6 +70,11 @@ const FixedDepositCreation: React.FC = () => {
   const [searchResults, setSearchResults] = useState<ExistingFD[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   
+  // Customer search state
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [customerSearchResults, setCustomerSearchResults] = useState<Customer[]>([]);
+  const [showCustomerSearch, setShowCustomerSearch] = useState(false);
+  
   const [formData, setFormData] = useState<FdFormData>({
     customer_id: '',
     account_id: '',
@@ -89,6 +94,21 @@ const FixedDepositCreation: React.FC = () => {
       loadExistingFDs();
     }
   }, [activeTab]);
+
+  // Search for customers
+  useEffect(() => {
+    if (customerSearchTerm.trim()) {
+      const results = customers.filter(customer => 
+        customer.first_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+        customer.last_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+        customer.nic.includes(customerSearchTerm) ||
+        customer.customer_id.toLowerCase().includes(customerSearchTerm.toLowerCase())
+      );
+      setCustomerSearchResults(results.slice(0, 5)); // Limit to 5 results
+    } else {
+      setCustomerSearchResults([]);
+    }
+  }, [customerSearchTerm, customers]);
 
   const fetchData = async () => {
     try {
@@ -245,6 +265,8 @@ const FixedDepositCreation: React.FC = () => {
     
     if (!formData.customer_id) {
       newErrors.customer_id = 'Please select a customer';
+    } else if (selectedCustomer && calculateAge(selectedCustomer.date_of_birth) < 18) {
+      newErrors.customer_id = 'Customer must be at least 18 years old for Fixed Deposit';
     }
     
     if (!formData.account_id) {
@@ -276,11 +298,6 @@ const FixedDepositCreation: React.FC = () => {
           newErrors.principal_amount = `Insufficient balance. Maximum FD amount: LKR ${availableForFD.toLocaleString()} (Minimum balance of LKR ${minBalance.toLocaleString()} must remain in savings account for ${savingPlan.plan_type} plan)`;
         }
       }
-    }
-
-    // Age validation for FD
-    if (selectedCustomer && calculateAge(selectedCustomer.date_of_birth) < 18) {
-      newErrors.customer_id = 'Customer must be at least 18 years old for Fixed Deposit';
     }
     
     setErrors(newErrors);
@@ -357,6 +374,9 @@ const FixedDepositCreation: React.FC = () => {
       setSelectedCustomer(null);
       setSelectedPlan(null);
       setSelectedAccount(null);
+      setCustomerSearchTerm('');
+      setCustomerSearchResults([]);
+      setShowCustomerSearch(false);
       setErrors({});
       
       // Refresh accounts data to update balances
@@ -385,22 +405,46 @@ const FixedDepositCreation: React.FC = () => {
     }
 
     // Update selected items when they change
-    if (name === 'customer_id') {
-      const customer = customers.find(c => c.customer_id === value);
-      setSelectedCustomer(customer || null);
-      // Reset account selection when customer changes
-      setFormData(prev => ({
-        ...prev,
-        account_id: ''
-      }));
-      setSelectedAccount(null);
-    } else if (name === 'fd_plan_id') {
+    if (name === 'fd_plan_id') {
       const plan = fdPlans.find(p => p.fd_plan_id === value);
       setSelectedPlan(plan || null);
     } else if (name === 'account_id') {
       const account = accounts.find(a => a.account_id === value);
       setSelectedAccount(account || null);
     }
+  };
+
+  const selectCustomer = (customer: Customer) => {
+    setFormData(prev => ({
+      ...prev,
+      customer_id: customer.customer_id,
+      account_id: '' // Reset account selection when customer changes
+    }));
+    setSelectedCustomer(customer);
+    setSelectedAccount(null);
+    setCustomerSearchTerm('');
+    setCustomerSearchResults([]);
+    setShowCustomerSearch(false);
+    
+    // Clear customer selection error
+    if (errors.customer_id) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.customer_id;
+        return newErrors;
+      });
+    }
+  };
+
+  const removeSelectedCustomer = () => {
+    setFormData(prev => ({
+      ...prev,
+      customer_id: '',
+      account_id: ''
+    }));
+    setSelectedCustomer(null);
+    setSelectedAccount(null);
+    setCustomerSearchTerm('');
   };
 
   const getPlanDescription = (plan: FdPlan) => {
@@ -475,20 +519,88 @@ const FixedDepositCreation: React.FC = () => {
               <div className="form-row">
                 <div className="form-group">
                   <label>Select Customer *</label>
-                  <select
-                    name="customer_id"
-                    value={formData.customer_id}
-                    onChange={handleInputChange}
-                    required
-                    className={errors.customer_id ? 'error' : ''}
-                  >
-                    <option value="">Choose a customer...</option>
-                    {customers.map(customer => (
-                      <option key={customer.customer_id} value={customer.customer_id}>
-                        {customer.first_name} {customer.last_name} (NIC: {customer.nic})
-                      </option>
-                    ))}
-                  </select>
+                  
+                  {selectedCustomer ? (
+                    <div className="selected-customer-card">
+                      <div className="customer-info">
+                        <strong>{selectedCustomer.first_name} {selectedCustomer.last_name}</strong>
+                        <span>ID: {selectedCustomer.customer_id} | NIC: {selectedCustomer.nic} | Age: {calculateAge(selectedCustomer.date_of_birth)}</span>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-danger btn-sm"
+                        onClick={removeSelectedCustomer}
+                      >
+                        Change
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="customer-search-section">
+                      {!showCustomerSearch ? (
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-block"
+                          onClick={() => setShowCustomerSearch(true)}
+                        >
+                          🔍 Search Customer
+                        </button>
+                      ) : (
+                        <div className="search-customer">
+                          <div className="search-box">
+                            <input
+                              type="text"
+                              placeholder="Search customers by name, NIC, or ID..."
+                              value={customerSearchTerm}
+                              onChange={(e) => setCustomerSearchTerm(e.target.value)}
+                              className="search-input"
+                              autoFocus
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={() => {
+                                setShowCustomerSearch(false);
+                                setCustomerSearchTerm('');
+                                setCustomerSearchResults([]);
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                          
+                          {customerSearchResults.length > 0 && (
+                            <div className="search-results">
+                              {customerSearchResults.map(customer => (
+                                <div 
+                                  key={customer.customer_id} 
+                                  className="search-result-item"
+                                  onClick={() => selectCustomer(customer)}
+                                >
+                                  <div className="customer-info">
+                                    <strong>{customer.first_name} {customer.last_name}</strong>
+                                    <span>ID: {customer.customer_id} | NIC: {customer.nic} | Age: {calculateAge(customer.date_of_birth)}</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="btn btn-primary btn-sm"
+                                  >
+                                    Select
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          
+                          {customerSearchTerm && customerSearchResults.length === 0 && (
+                            <div className="no-results">
+                              No customers found matching your search.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
                   {errors.customer_id && <span className="error-text">{errors.customer_id}</span>}
                 </div>
 
@@ -655,6 +767,9 @@ const FixedDepositCreation: React.FC = () => {
                   setSelectedCustomer(null);
                   setSelectedPlan(null);
                   setSelectedAccount(null);
+                  setCustomerSearchTerm('');
+                  setCustomerSearchResults([]);
+                  setShowCustomerSearch(false);
                   setErrors({});
                 }}
               >
