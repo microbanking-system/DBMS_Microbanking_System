@@ -75,7 +75,8 @@ const Reports: React.FC = () => {
         headers: { Authorization: `Bearer ${token}` },
         params: dateRange
       });
-      setAgentTransactions(response.data);
+      // Normalize response to array to avoid runtime errors when backend returns an object or null
+      setAgentTransactions(Array.isArray(response.data) ? response.data : (response.data ? [response.data] : []));
     } catch (error) {
       console.error('Failed to load agent transactions report');
     } finally {
@@ -91,7 +92,7 @@ const Reports: React.FC = () => {
         headers: { Authorization: `Bearer ${token}` },
         params: dateRange
       });
-      setAccountSummaries(response.data);
+      setAccountSummaries(Array.isArray(response.data) ? response.data : (response.data ? [response.data] : []));
     } catch (error) {
       console.error('Failed to load account summaries report');
     } finally {
@@ -106,7 +107,7 @@ const Reports: React.FC = () => {
       const response = await axios.get('/api/admin/reports/active-fds', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setActiveFDs(response.data);
+      setActiveFDs(Array.isArray(response.data) ? response.data : (response.data ? [response.data] : []));
     } catch (error) {
       console.error('Failed to load active FDs report');
     } finally {
@@ -122,7 +123,7 @@ const Reports: React.FC = () => {
         headers: { Authorization: `Bearer ${token}` },
         params: { month: new Date().getMonth() + 1, year: new Date().getFullYear() }
       });
-      setInterestSummary(response.data);
+      setInterestSummary(Array.isArray(response.data) ? response.data : (response.data ? [response.data] : []));
     } catch (error) {
       console.error('Failed to load interest summary report');
     } finally {
@@ -138,7 +139,7 @@ const Reports: React.FC = () => {
         headers: { Authorization: `Bearer ${token}` },
         params: dateRange
       });
-      setCustomerActivity(response.data);
+      setCustomerActivity(Array.isArray(response.data) ? response.data : (response.data ? [response.data] : []));
     } catch (error) {
       console.error('Failed to load customer activity report');
     } finally {
@@ -319,26 +320,65 @@ const Reports: React.FC = () => {
   };
 
   
-    const getTotal = (data: any[], field: string) => {
-        return data.reduce((sum, item) => {
-            const value = item[field];
-            // Convert to number, handling different possible formats
-            if (typeof value === 'string') {
-            // Remove "LKR " prefix and any commas, then parse as float
-            const cleanValue = value.replace(/LKR\s?|,/g, '');
-            return sum + parseFloat(cleanValue) || 0;
-            }
-            return sum + (parseFloat(value) || 0);
-        }, 0);
-    };
+  const getTotal = (data: any, field: string) => {
+    // Defensive: ensure we have an array; if not, return 0 to avoid runtime crashes
+    if (!Array.isArray(data)) {
+      // sometimes the API may return an object or null; log in dev to help debugging
+      if (process.env.NODE_ENV !== 'production') {
+        // eslint-disable-next-line no-console
+        console.warn('getTotal expected an array but received:', data);
+      }
+      return 0;
+    }
 
-    // helper function to format numbers properly:
-    const formatCurrency = (value: number) => {
-        return `LKR ${value.toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        })}`;
-    };
+    return data.reduce((sum: number, item: any) => {
+      if (!item) return sum;
+
+      const value = item[field];
+      if (value == null) return sum;
+
+      let num = 0;
+
+      if (typeof value === 'number') {
+        num = value;
+      } else if (typeof value === 'string') {
+        // Remove "LKR " prefix and any commas, then parse as float
+        const cleanValue = value.replace(/LKR\s?|,/g, '').trim();
+        const parsed = parseFloat(cleanValue);
+        num = Number.isNaN(parsed) ? 0 : parsed;
+      } else {
+        const parsed = parseFloat(String(value));
+        num = Number.isNaN(parsed) ? 0 : parsed;
+      }
+
+      return sum + num;
+    }, 0 as number);
+  };
+
+  // helper function to format numbers properly:
+  const formatCurrency = (value: any) => {
+    // Defensive: handle undefined/null and non-numeric inputs
+    if (value == null) {
+      return 'LKR 0.00';
+    }
+
+    let num: number;
+    if (typeof value === 'number') {
+      num = value;
+    } else if (typeof value === 'string') {
+      const clean = value.replace(/LKR\s?|,/g, '').trim();
+      const parsed = parseFloat(clean);
+      num = Number.isNaN(parsed) ? 0 : parsed;
+    } else {
+      const parsed = parseFloat(String(value));
+      num = Number.isNaN(parsed) ? 0 : parsed;
+    }
+
+    return `LKR ${num.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`;
+  };
     
   return (
     <div className="reports-section">
