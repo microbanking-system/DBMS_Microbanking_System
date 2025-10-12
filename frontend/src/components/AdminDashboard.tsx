@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import UserManagement from './UserManagement';
 import BranchManagement from './BranchManagement';
 import FDInterestManagement from './FDInterestManagement';
+import SavingsInterestManagement from './SavingsInterestManagement';
 
 const AdminDashboard: React.FC = () => {
   const [activeSection, setActiveSection] = useState('users');
@@ -30,6 +31,12 @@ const AdminDashboard: React.FC = () => {
           💰 FD Interest
         </button>
         <button 
+          className={activeSection === 'savings-interest' ? 'active' : ''}
+          onClick={() => setActiveSection('savings-interest')}
+        >
+          💵 Savings Interest
+        </button>
+        <button 
           className={activeSection === 'reports' ? 'active' : ''}
           onClick={() => setActiveSection('reports')}
         >
@@ -41,6 +48,7 @@ const AdminDashboard: React.FC = () => {
         {activeSection === 'users' && <UserManagement />}
         {activeSection === 'branches' && <BranchManagement />}
         {activeSection === 'fd-interest' && <FDInterestManagement />}
+        {activeSection === 'savings-interest' && <SavingsInterestManagement />}
         {activeSection === 'reports' && (
           <div className="reports-section">
             <h4>Reports</h4>

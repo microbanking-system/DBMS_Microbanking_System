@@ -2503,3 +2503,279 @@ app.post('/api/agent/accounts/deactivate', async (req, res) => {
     res.status(401).json({ message: 'Invalid or expired token' });
   }
 });
+
+// Function to automatically calculate AND credit savings interest
+const processMonthlySavingsInterest = async () => {
+  console.log('🚀 Starting automatic monthly savings interest processing...');
+  
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const today = new Date();
+    const currentMonth = today.getMonth() + 1;
+    const currentYear = today.getFullYear();
+    
+    // Always process the previous month
+    const periodStart = new Date(currentYear, today.getMonth() - 1, 1);
+    const periodEnd = new Date(currentYear, today.getMonth(), 0);
+    
+    // Format dates as YYYY-MM-DD
+    const startDate = periodStart.toISOString().split('T')[0];
+    const endDate = periodEnd.toISOString().split('T')[0];
+    const processDate = today.toISOString().split('T')[0];
+
+    // Check if this MONTH has already been processed for savings interest
+    const periodCheck = await client.query(`
+      SELECT * FROM savings_interest_periods 
+      WHERE EXTRACT(MONTH FROM period_start) = $1 
+      AND EXTRACT(YEAR FROM period_start) = $2 
+      AND is_processed = true
+    `, [currentMonth, currentYear]);
+
+    if (periodCheck.rows.length > 0) {
+      console.log('✅ Savings interest for this month already processed');
+      await client.query('ROLLBACK');
+      return { alreadyProcessed: true, message: 'Savings interest for this month already processed' };
+    }
+
+    console.log(`📅 Processing savings interest for period: ${startDate} to ${endDate}`);
+
+    // Get all active savings accounts with their interest rates
+    const activeSavingsAccounts = await client.query(`
+      SELECT 
+        a.account_id,
+        a.balance,
+        sp.interest,
+        sp.plan_type,
+        sp.min_balance
+      FROM account a
+      JOIN savingplan sp ON a.saving_plan_id = sp.saving_plan_id
+      WHERE a.account_status = 'Active'
+      AND a.balance >= sp.min_balance
+      AND a.fd_id IS NULL  -- Exclude accounts with active FDs
+    `);
+
+    let calculatedCount = 0;
+    let creditedCount = 0;
+    let totalInterest = 0;
+
+    // Calculate interest for each savings account and credit immediately
+    for (const account of activeSavingsAccounts.rows) {
+      // Check if this account already had interest calculated for current month
+      const existingInterest = await client.query(`
+        SELECT * FROM savings_interest_calculations 
+        WHERE account_id = $1 
+        AND EXTRACT(MONTH FROM calculation_date) = $2 
+        AND EXTRACT(YEAR FROM calculation_date) = $3
+        AND status = 'credited'
+      `, [account.account_id, currentMonth, currentYear]);
+
+      if (existingInterest.rows.length > 0) {
+        console.log(`⏭️ Interest already credited for account ${account.account_id} this month, skipping`);
+        continue;
+      }
+
+      // Calculate monthly interest (annual rate / 12)
+      const monthlyInterestRate = parseFloat(account.interest) / 100 / 12;
+      const interestAmount = parseFloat((parseFloat(account.balance) * monthlyInterestRate).toFixed(2));
+      
+      if (interestAmount > 0) {
+        try {
+          // Update account balance (CREDIT THE INTEREST)
+          const newBalance = parseFloat(account.balance) + interestAmount;
+          
+          await client.query(
+            'UPDATE account SET balance = $1 WHERE account_id = $2',
+            [newBalance, account.account_id]
+          );
+
+          // Generate transaction ID for interest credit
+          const transactionCount = await client.query('SELECT COUNT(*) as count FROM transaction');
+          const transactionId = `TXN${String(parseInt(transactionCount.rows[0].count) + 1).padStart(3, '0')}`;
+
+          // Create interest credit transaction
+          const adminUser = await client.query(
+            "SELECT employee_id FROM employee WHERE role = 'Admin' LIMIT 1"
+          );
+          const employeeId = adminUser.rows.length > 0 ? adminUser.rows[0].employee_id : 'A001';
+
+          await client.query(
+            `INSERT INTO transaction (transaction_id, transaction_type, amount, time, description, account_id, employee_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [transactionId, 'Interest', interestAmount, today,
+             `Monthly Savings Interest - ${account.plan_type} Plan`, account.account_id, employeeId]
+          );
+
+          // Create interest calculation record (marked as credited)
+          await client.query(
+            `INSERT INTO savings_interest_calculations 
+             (account_id, calculation_date, interest_amount, interest_rate, plan_type, status, credited_at)
+             VALUES ($1, $2, $3, $4, $5, 'credited', $6)`,
+            [account.account_id, processDate, interestAmount, account.interest, account.plan_type, today]
+          );
+
+          calculatedCount++;
+          creditedCount++;
+          totalInterest += interestAmount;
+
+          console.log(`💰 Credited LKR ${interestAmount} interest for account ${account.account_id} (${account.plan_type})`);
+
+        } catch (error) {
+          console.error(`❌ Failed to process interest for account ${account.account_id}:`, error);
+          // Create failed record but continue with others
+          await client.query(
+            `INSERT INTO savings_interest_calculations 
+             (account_id, calculation_date, interest_amount, interest_rate, plan_type, status)
+             VALUES ($1, $2, $3, $4, $5, 'failed')`,
+            [account.account_id, processDate, interestAmount, account.interest, account.plan_type]
+          );
+        }
+      }
+    }
+
+    // Mark period as processed (only if we actually processed something)
+    if (calculatedCount > 0) {
+      await client.query(
+        `INSERT INTO savings_interest_periods (period_start, period_end, is_processed, processed_at)
+         VALUES ($1, $2, true, $3)`,
+        [startDate, endDate, processDate]
+      );
+    }
+
+    await client.query('COMMIT');
+    
+    console.log(`✅ Monthly savings interest processing completed!`);
+    console.log(`📊 Accounts Processed: ${calculatedCount}`);
+    console.log(`💰 Total Interest Credited: LKR ${totalInterest.toLocaleString()}`);
+    console.log(`📅 Period: ${startDate} to ${endDate}`);
+
+    return {
+      success: true,
+      processed: calculatedCount,
+      totalInterest: totalInterest,
+      period: `${startDate} to ${endDate}`
+    };
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Error in automatic savings interest processing:', error);
+    return { success: false, error: error.message };
+  } finally {
+    client.release();
+  }
+};
+
+// Schedule savings interest to run on 1st of every month at 3:30 AM (30 minutes after FD interest)
+cron.schedule('30 3 1 * *', processMonthlySavingsInterest);
+console.log('✅ Savings Interest Auto-Processor: Scheduled for 1st of every month at 3:30 AM');
+
+// Manual trigger for savings interest processing
+app.post('/api/admin/savings-interest/process-now', async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Authorization required' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, 'your_jwt_secret');
+    if (decoded.role !== 'Admin') {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+
+    console.log('🔄 Manual savings interest processing triggered by admin');
+    const result = await processMonthlySavingsInterest();
+    
+    if (result.alreadyProcessed) {
+      return res.status(400).json({ 
+        message: 'Savings interest for this month has already been processed',
+        note: 'Interest can only be processed once per month to prevent double payments'
+      });
+    }
+    
+    if (result.success) {
+      res.json({ 
+        message: 'Savings interest processing completed successfully',
+        processed_count: result.processed,
+        total_interest: result.totalInterest,
+        period: result.period,
+        note: 'This process also runs automatically on the 1st of every month at 3:30 AM'
+      });
+    } else {
+      res.status(500).json({ 
+        message: 'Savings interest processing failed',
+        error: result.error 
+      });
+    }
+
+  } catch (error) {
+    console.error('Authentication error:', error);
+    res.status(401).json({ message: 'Invalid or expired token' });
+  }
+});
+
+// Get savings interest summary
+app.get('/api/admin/savings-interest/summary', async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Authorization required' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, 'your_jwt_secret');
+    if (decoded.role !== 'Admin') {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+
+    const client = await pool.connect();
+    try {
+      // Total interest paid this month
+      const monthlyInterest = await client.query(`
+        SELECT COALESCE(SUM(interest_amount), 0) as total_interest
+        FROM savings_interest_calculations 
+        WHERE status = 'credited' 
+        AND EXTRACT(MONTH FROM credited_at) = EXTRACT(MONTH FROM CURRENT_DATE)
+        AND EXTRACT(YEAR FROM credited_at) = EXTRACT(YEAR FROM CURRENT_DATE)
+      `);
+
+      // Active savings accounts count and total balance
+      const activeSavingsAccounts = await client.query(`
+        SELECT COUNT(*) as active_count, COALESCE(SUM(balance), 0) as total_balance
+        FROM account 
+        WHERE account_status = 'Active' 
+        AND fd_id IS NULL
+        AND balance >= (
+          SELECT min_balance FROM savingplan sp 
+          WHERE sp.saving_plan_id = account.saving_plan_id
+        )
+      `);
+
+      // Recent interest periods
+      const recentPeriods = await client.query(`
+        SELECT period_start, period_end, processed_at
+        FROM savings_interest_periods 
+        WHERE is_processed = true
+        ORDER BY processed_at DESC
+        LIMIT 5
+      `);
+
+      res.json({
+        monthly_interest: parseFloat(monthlyInterest.rows[0].total_interest),
+        active_savings_accounts: {
+          count: parseInt(activeSavingsAccounts.rows[0].active_count),
+          total_balance: parseFloat(activeSavingsAccounts.rows[0].total_balance)
+        },
+        recent_periods: recentPeriods.rows,
+        next_scheduled_run: '1st of next month at 3:30 AM'
+      });
+    } catch (error) {
+      console.error('Database error:', error);
+      res.status(500).json({ message: 'Database error' });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Authentication error:', error);
+    res.status(401).json({ message: 'Invalid or expired token' });
+  }
+});

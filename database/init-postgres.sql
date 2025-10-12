@@ -161,6 +161,36 @@ CREATE TABLE IF NOT EXISTS fd_interest_periods (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Table to track savings interest calculations
+CREATE TABLE IF NOT EXISTS savings_interest_calculations (
+    id SERIAL PRIMARY KEY,
+    account_id VARCHAR(20) NOT NULL,
+    calculation_date DATE NOT NULL,
+    interest_amount DECIMAL(15,2) NOT NULL,
+    interest_rate DECIMAL(5,2) NOT NULL,
+    plan_type VARCHAR(20) NOT NULL,
+    credited_at TIMESTAMP,
+    status VARCHAR(20) DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (account_id) REFERENCES Account(account_id) ON DELETE CASCADE
+);
+
+-- Table to store savings interest calculation periods
+CREATE TABLE IF NOT EXISTS savings_interest_periods (
+    id SERIAL PRIMARY KEY,
+    period_start DATE NOT NULL,
+    period_end DATE NOT NULL,
+    is_processed BOOLEAN DEFAULT FALSE,
+    processed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_savings_interest_account_id ON savings_interest_calculations(account_id);
+CREATE INDEX IF NOT EXISTS idx_savings_interest_status ON savings_interest_calculations(status);
+CREATE INDEX IF NOT EXISTS idx_savings_interest_calculation_date ON savings_interest_calculations(calculation_date);
+CREATE INDEX IF NOT EXISTS idx_savings_interest_periods_processed ON savings_interest_periods(is_processed);
+
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_fd_interest_fd_id ON fd_interest_calculations(fd_id);
 CREATE INDEX IF NOT EXISTS idx_fd_interest_status ON fd_interest_calculations(status);
