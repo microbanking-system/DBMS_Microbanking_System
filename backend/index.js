@@ -677,9 +677,31 @@ app.get('/api/admin/fd-interest/summary', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Start server with retry when port is already in use
+const startServer = (startPort, maxAttempts = 10) => {
+  let port = parseInt(startPort, 10);
+  const tryListen = (attempt) => {
+    const server = app.listen(port, () => {
+      console.log(`Server running on port ${port}`);
+    });
+
+    server.on('error', (err) => {
+      if (err && err.code === 'EADDRINUSE' && attempt < maxAttempts) {
+        console.warn(`Port ${port} in use, trying port ${port + 1} (attempt ${attempt + 1})`);
+        port += 1;
+        // small delay before retrying
+        setTimeout(() => tryListen(attempt + 1), 200);
+      } else {
+        console.error('Failed to start server:', err);
+        process.exit(1);
+      }
+    });
+  };
+
+  tryListen(1);
+};
+
+startServer(PORT);
 
 // Branch Management APIs
 
