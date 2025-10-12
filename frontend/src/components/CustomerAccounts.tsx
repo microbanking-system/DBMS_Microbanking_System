@@ -387,18 +387,6 @@ const CustomerAccounts: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* Quick Actions */}
-      <div className="quick-actions">
-        <h4>Quick Actions</h4>
-        <div className="action-buttons">
-          
-          <button className="btn btn-secondary">
-            Print Report
-          </button>
-          
-        </div>
-      </div>
     </div>
   );
 };
