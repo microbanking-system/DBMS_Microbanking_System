@@ -862,7 +862,7 @@ const AccountCreation: React.FC = () => {
           </div>
 
           <div className="account-list">
-            <h5>Savings Accounts ({accountSearchResults.length})</h5>
+            <h6>Savings Accounts ({accountSearchResults.length})</h6>
             
             {accountSearchResults.length === 0 ? (
               <div className="no-data">

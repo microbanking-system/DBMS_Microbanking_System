@@ -3,6 +3,8 @@ import UserManagement from './UserManagement';
 import BranchManagement from './BranchManagement';
 import FDInterestManagement from './FDInterestManagement';
 import SavingsInterestManagement from './SavingsInterestManagement';
+import Reports from './Reports';
+
 
 const AdminDashboard: React.FC = () => {
   const [activeSection, setActiveSection] = useState('users');
@@ -53,7 +55,7 @@ const AdminDashboard: React.FC = () => {
           <div className="reports-section">
             <h4>Reports</h4>
             <p>View system reports and analytics.</p>
-            {/* Existing reports content */}
+            {activeSection === 'reports' && <Reports />}
           </div>
         )}
       </div>
