@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import DashboardHome from './DashboardHome';
 import UserManagement from './UserManagement';
 import BranchManagement from './BranchManagement';
 import FDInterestManagement from './FDInterestManagement';
@@ -7,13 +8,19 @@ import Reports from './Reports';
 
 
 const AdminDashboard: React.FC = () => {
-  const [activeSection, setActiveSection] = useState('users');
+  const [activeSection, setActiveSection] = useState('home');
 
   return (
     <div className="admin-dashboard">
       {/* <h2>Admin Dashboard</h2> */}
       
       <div className="admin-nav">
+        <button 
+          className={activeSection === 'home' ? 'active' : ''}
+          onClick={() => setActiveSection('home')}
+        >
+          🏠 Home
+        </button>
         <button 
           className={activeSection === 'users' ? 'active' : ''}
           onClick={() => setActiveSection('users')}
@@ -47,6 +54,7 @@ const AdminDashboard: React.FC = () => {
       </div>
 
       <div className="admin-content">
+        {activeSection === 'home' && <DashboardHome />}
         {activeSection === 'users' && <UserManagement />}
         {activeSection === 'branches' && <BranchManagement />}
         {activeSection === 'fd-interest' && <FDInterestManagement />}

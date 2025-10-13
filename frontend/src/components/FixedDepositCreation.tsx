@@ -506,15 +506,15 @@ const FixedDepositCreation: React.FC = () => {
       </div>
 
       {/* Tab Navigation */}
-      <div className="tab-navigation">
+      <div className="tabs">
         <button 
-          className={`tab-btn ${activeTab === 'create' ? 'active' : ''}`}
+          className={`tab ${activeTab === 'create' ? 'active' : ''}`}
           onClick={() => setActiveTab('create')}
         >
           Create New FD
         </button>
         <button 
-          className={`tab-btn ${activeTab === 'manage' ? 'active' : ''}`}
+          className={`tab ${activeTab === 'manage' ? 'active' : ''}`}
           onClick={() => setActiveTab('manage')}
         >
           Manage Existing FDs

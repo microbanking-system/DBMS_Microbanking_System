@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import DashboardHome from './DashboardHome';
 import CustomerRegistration from './CustomerRegistration';
 import AccountCreation from './AccountCreation';
 import FixedDepositCreation from './FixedDepositCreation';
@@ -7,13 +8,19 @@ import TransactionProcessing from './TransactionProcessing';
 import AgentPerformance from './AgentPerformance';
 
 const AgentDashboard: React.FC = () => {
-  const [activeSection, setActiveSection] = useState('register');
+  const [activeSection, setActiveSection] = useState('home');
 
   return (
     <div className="agent-dashboard">
       {/* <h2>Agent Dashboard</h2> */}
       
       <div className="admin-nav">
+        <button 
+          className={activeSection === 'home' ? 'active' : ''}
+          onClick={() => setActiveSection('home')}
+        >
+          🏠 Home
+        </button>
         <button 
           className={activeSection === 'register' ? 'active' : ''}
           onClick={() => setActiveSection('register')}
@@ -53,6 +60,7 @@ const AgentDashboard: React.FC = () => {
       </div>
 
       <div className="admin-content">
+        {activeSection === 'home' && <DashboardHome />}
         {activeSection === 'register' && <CustomerRegistration />}
         {activeSection === 'account' && <AccountCreation />}
         {activeSection === 'fixed-deposit' && <FixedDepositCreation />}

@@ -110,7 +110,6 @@ const LoginRegister: React.FC<LoginRegisterProps> = ({ onLoginSuccess }) => {
           <div className="auth-header">
             <img src={logoImage} alt="B-Trust Logo" className="login-logo" />
             <h2>Welcome Back</h2>
-            <p>Sign in to access your dashboard</p>
           </div>
 
           <div className="form-group">

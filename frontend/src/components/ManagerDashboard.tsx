@@ -1,16 +1,23 @@
 import React, { useState } from 'react';
+import DashboardHome from './DashboardHome';
 import TeamManagement from './TeamManagement';
 import TransactionReports from './TransactionReports';
 import CustomerAccounts from './CustomerAccounts';
 
 const ManagerDashboard: React.FC = () => {
-  const [activeSection, setActiveSection] = useState('overview');
+  const [activeSection, setActiveSection] = useState('home');
 
   return (
     <div className="manager-dashboard">
       {/* <h2>Manager Dashboard</h2> */}
       
       <div className="admin-nav">
+        <button 
+          className={activeSection === 'home' ? 'active' : ''}
+          onClick={() => setActiveSection('home')}
+        >
+          🏠 Home
+        </button>
         <button 
           className={activeSection === 'overview' ? 'active' : ''}
           onClick={() => setActiveSection('overview')}
@@ -38,6 +45,7 @@ const ManagerDashboard: React.FC = () => {
       </div>
 
       <div className="admin-content">
+        {activeSection === 'home' && <DashboardHome />}
         {activeSection === 'overview' && (
           <div className="dashboard-overview">
             <div className="dashboard-cards">
