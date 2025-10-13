@@ -232,12 +232,13 @@ const UserManagement: React.FC = () => {
           <h4>User Management</h4>
           <p className="section-subtitle">Manage system users and permissions</p>
         </div>
+        <div> <br/></div>
         <button 
           className="btn btn-primary"
           onClick={() => setIsAddingUser(true)}
         >
           <span className="btn-icon">+</span> Add New User
-        </button>
+        </button><div> <br/></div>
       </div>
 
       {successMessage && (

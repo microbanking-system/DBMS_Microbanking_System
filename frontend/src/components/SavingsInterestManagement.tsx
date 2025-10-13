@@ -64,6 +64,7 @@ const SavingsInterestManagement: React.FC = () => {
   return (
     <div className="savings-interest-management">
       <h4>Savings Account Interest Management</h4>
+      <br/>
       
       <div className="auto-system-info">
         <div className="info-card success">
@@ -93,7 +94,7 @@ const SavingsInterestManagement: React.FC = () => {
             </div>
           </div>
         )}
-
+        <div> <br/></div>
         <div className="recent-periods">
           <p>Recently Processed Periods</p>
           {summary && summary.recent_periods && summary.recent_periods.length > 0 ? (

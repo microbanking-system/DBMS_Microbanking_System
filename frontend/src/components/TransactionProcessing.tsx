@@ -320,6 +320,7 @@ const TransactionProcessing: React.FC = () => {
           <h4>Transaction Processing</h4>
           <p className="section-subtitle">Process deposits, withdrawals, and view transaction history</p>
         </div>
+        <br/>
       </div>
 
       {successMessage && (

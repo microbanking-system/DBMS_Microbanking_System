@@ -465,7 +465,9 @@ const AccountCreation: React.FC = () => {
           <h4>Account Management</h4>
           <p className="section-subtitle">Create and manage savings accounts</p>
         </div>
+        <br/>
       </div>
+
 
       {/* Tab Navigation */}
       <div className="tab-navigation">

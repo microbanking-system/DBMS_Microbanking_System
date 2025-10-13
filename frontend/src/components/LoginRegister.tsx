@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import logoImage from '../imgs/B_Trust_logo_Yellow.png';
 
 interface LoginData {
   username: string;
@@ -81,54 +82,93 @@ const LoginRegister: React.FC<LoginRegisterProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="App">
-      <header className="App-header">
-        <h1>B-Trust Microbanking System</h1>
-        <div className="auth-container">
-          {/* Loading Overlay */}
-          {isLoading && (
-            <div className="loading-overlay">
-              <div className="loading-spinner">Loading...</div>
-            </div>
-          )}
-          
-          <form className="auth-form" onSubmit={handleLogin}>
-            <p>Welcome</p>
-            <div className="form-group">
-              <label>Username:</label>
-              <input
-                type="text"
-                name="username"
-                value={loginData.username}
-                onChange={handleLoginChange}
-                required
-                className={errors.loginUsername ? 'error' : ''}
-              />
-              {errors.loginUsername && <span className="error-text">{errors.loginUsername}</span>}
-            </div>
-            <div className="form-group">
-              <label>Password:</label>
-              <input
-                type="password"
-                name="password"
-                value={loginData.password}
-                onChange={handleLoginChange}
-                required
-                className={errors.loginPassword ? 'error' : ''}
-              />
-              {errors.loginPassword && <span className="error-text">{errors.loginPassword}</span>}
-            </div>
-            <button type="submit" disabled={isLoading}>
-              {isLoading ? 'Logging in...' : 'Login'}
-            </button>
-          </form>
-
-          <div className="login-info">
-            <p>Only authorized personnel can access this system.</p>
-            <p>Contact administrator for account creation.</p>
-          </div>
+    <div className="App login-page">
+      <div className="login-background">
+        <div className="floating-shapes">
+          <div className="shape shape-1"></div>
+          <div className="shape shape-2"></div>
+          <div className="shape shape-3"></div>
         </div>
-      </header>
+      </div>
+      
+      {/* <header className="App-header">
+        <h1>✦ B-Trust</h1>
+        <p className="tagline">Modern Microbanking System</p>
+      </header> */}
+
+      <div className="auth-container">
+        {/* Loading Overlay */}
+        {isLoading && (
+          <div className="loading-overlay">
+            <div className="loading-spinner">
+              <div className="spinner-ring"></div>
+            </div>
+          </div>
+        )}
+        
+        <form className="auth-form" onSubmit={handleLogin}>
+          <div className="auth-header">
+            <img src={logoImage} alt="B-Trust Logo" className="login-logo" />
+            <h2>Welcome Back</h2>
+            <p>Sign in to access your dashboard</p>
+          </div>
+
+          <div className="form-group">
+            <label>Username</label>
+            <input
+              type="text"
+              name="username"
+              value={loginData.username}
+              onChange={handleLoginChange}
+              required
+              className={errors.loginUsername ? 'error' : ''}
+              placeholder="Enter your username"
+            />
+            {errors.loginUsername && <span className="error-text">{errors.loginUsername}</span>}
+          </div>
+          <div className="form-group">
+            <label>Password</label>
+            <input
+              type="password"
+              name="password"
+              value={loginData.password}
+              onChange={handleLoginChange}
+              required
+              className={errors.loginPassword ? 'error' : ''}
+              placeholder="Enter your password"
+            />
+            {errors.loginPassword && <span className="error-text">{errors.loginPassword}</span>}
+          </div>
+          <button type="submit" className="btn btn-primary btn-block" disabled={isLoading}>
+            {isLoading ? (
+              <>
+                <span className="loading-dots">Signing in</span>
+              </>
+            ) : (
+              <>
+                Sign In
+                <span className="arrow">→</span>
+              </>
+            )}
+          </button>
+
+          <div className="login-footer">
+            
+            <p className="secure-text">Secure • Encrypted • Trusted</p>
+          </div>
+        </form>
+
+        <div className="login-info">
+          {/* <div className="info-card">
+            <span className="info-icon">🔒</span>
+            <p>Secure access for authorized personnel only</p>
+          </div>
+          <div className="info-card">
+            <span className="info-icon">👥</span>
+            <p>Contact administrator for account creation</p>
+          </div> */}
+        </div>
+      </div>
     </div>
   );
 };

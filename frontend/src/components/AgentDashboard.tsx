@@ -11,7 +11,7 @@ const AgentDashboard: React.FC = () => {
 
   return (
     <div className="agent-dashboard">
-      <h2>Agent Dashboard</h2>
+      {/* <h2>Agent Dashboard</h2> */}
       
       <div className="admin-nav">
         <button 

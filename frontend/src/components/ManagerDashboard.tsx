@@ -8,7 +8,7 @@ const ManagerDashboard: React.FC = () => {
 
   return (
     <div className="manager-dashboard">
-      <h2>Manager Dashboard</h2>
+      {/* <h2>Manager Dashboard</h2> */}
       
       <div className="admin-nav">
         <button 

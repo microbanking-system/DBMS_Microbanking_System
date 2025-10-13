@@ -502,6 +502,7 @@ const FixedDepositCreation: React.FC = () => {
           <h4>Fixed Deposit Management</h4>
           <p className="section-subtitle">Create and manage fixed deposit accounts</p>
         </div>
+        <br/>
       </div>
 
       {/* Tab Navigation */}

@@ -175,6 +175,7 @@ const AccountDetailsView: React.FC = () => {
           <h4>Account Details & Search</h4>
           <p className="section-subtitle">View and search all savings account details</p>
         </div>
+        <br/>
       </div>
 
       <div className="accounts-container">

@@ -185,7 +185,7 @@ const BranchManagement: React.FC = () => {
         <div>
           <h4>Branch Management</h4>
           <p className="section-subtitle">Manage bank branches and their contact information</p>
-        </div>
+        </div><div> <br/></div>
         <button 
           className="btn btn-primary"
           onClick={() => {
@@ -194,7 +194,7 @@ const BranchManagement: React.FC = () => {
           }}
         >
           <span className="btn-icon">+</span> Add New Branch
-        </button>
+        </button><div> <br/></div>
       </div>
 
       {successMessage && (

@@ -56,11 +56,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   return (
     <div className="dashboard">
       <header className="dashboard-header">
-        <h1>Microbanking System Dashboard</h1>
+        <div className="brand-section">
+          <h1>✦ B-Trust Dashboard</h1>
+        </div>
         <div className="user-info">
-          <span>Welcome, {user.first_name} ({user.role})</span>
-          <span className="username">@{user.username}</span>
-          <button onClick={handleLogout}>Logout</button>
+          <div className="user-details">
+            <span className="user-welcome">Welcome, <strong>{user.first_name}</strong>
+            <span className="user-role">{user.role}</span></span>
+          </div>
+          <button onClick={handleLogout} className="btn btn-secondary btn-sm logout-btn">
+            <span>Logout</span>
+            <span className="logout-icon">→</span>
+          </button>
         </div>
       </header>
       
@@ -70,7 +77,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
         {user.role === 'Agent' && <AgentDashboard />}
         
         {!['Admin', 'Manager', 'Agent'].includes(user.role) && (
-          <div>No dashboard available for your role: {user.role}</div>
+          <div className="no-access-card">
+            <div className="no-access-icon">🔒</div>
+            <h3>Access Restricted</h3>
+            <p>No dashboard available for your role: {user.role}</p>
+          </div>
         )}
       </main>
     </div>
