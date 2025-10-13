@@ -244,8 +244,8 @@ const AccountCreation: React.FC = () => {
         return 18;
       case 'children':
         return 0; // No minimum age for children accounts
-      case 'student':
-        return 5; // Example: Student accounts might require at least 5 years
+      case 'teen':
+        return 0; // Example: Student accounts might require at least 5 years
       default:
         return 18; // Default adult account
     }
@@ -274,12 +274,10 @@ const AccountCreation: React.FC = () => {
       newErrors.branch_id = 'Please select a branch';
     }
     
-    // Normalize initial deposit to a number for reliable comparisons
-    const initialDeposit = Number(formData.initial_deposit) || 0;
-    if (initialDeposit < 0) {
+    if (formData.initial_deposit < 0) {
       newErrors.initial_deposit = 'Initial deposit cannot be negative';
-    } else if (selectedPlan && initialDeposit < Number(selectedPlan.min_balance)) {
-      newErrors.initial_deposit = `Minimum balance for ${selectedPlan.plan_type} plan is LKR ${Number(selectedPlan.min_balance).toLocaleString()}`;
+    } else if (selectedPlan && formData.initial_deposit < selectedPlan.min_balance-0.00) {
+      newErrors.initial_deposit = `Minimum balance for ${selectedPlan.plan_type} plan is LKR ${selectedPlan.min_balance.toLocaleString()}`;
     }
 
     // Validate joint account requirements
@@ -347,22 +345,9 @@ const AccountCreation: React.FC = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-
-    // If the field is numeric (initial_deposit), parse it to a number to avoid string comparisons
-    let parsedValue: any = value;
-    if (name === 'initial_deposit') {
-      // The input type=number returns a string; convert empty string to 0
-      if (value === '') {
-        parsedValue = 0;
-      } else {
-        const n = parseFloat(String(value));
-        parsedValue = Number.isNaN(n) ? 0 : n;
-      }
-    }
-
     setFormData({
       ...formData,
-      [name]: parsedValue
+      [name]: value
     });
 
     // Clear error when user starts typing
@@ -779,7 +764,7 @@ const AccountCreation: React.FC = () => {
                     </div>
                     <div className="summary-item">
                       <span>Initial Deposit:</span>
-                      <strong>LKR {Number(formData.initial_deposit).toLocaleString()}</strong>
+                      <strong>LKR {formData.initial_deposit.toLocaleString()}</strong>
                     </div>
                     <div className="summary-item">
                       <span>Minimum Balance:</span>
