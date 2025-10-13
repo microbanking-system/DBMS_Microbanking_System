@@ -14,11 +14,11 @@ app.use(express.json());
 
 // PostgreSQL connection
 const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'newdb',
-  password: '123',
-  port: 5432,
+  user: process.env.DB_USER || 'postgres',
+  host: process.env.DB_HOST || 'localhost',
+  database: process.env.DB_NAME || 'newdb',
+  password: process.env.DB_PASSWORD || '123',
+  port: process.env.DB_PORT || 5432,
 });
 
 // Test database connection
@@ -306,7 +306,7 @@ app.post('/api/admin/register', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Admin access required' });
     }
@@ -440,7 +440,7 @@ app.post('/api/login', async (req, res) => {
     // Create token
     const token = jwt.sign(
       { id: user.employee_id, role: user.role },
-      'your_jwt_secret',
+      process.env.JWT_SECRET || 'hey',
       { expiresIn: '1h' }
     );
 
@@ -471,7 +471,7 @@ app.get('/api/admin/users', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Admin access required' });
     }
@@ -504,7 +504,7 @@ app.delete('/api/admin/users/:id', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Admin access required' });
     }
@@ -562,7 +562,7 @@ app.post('/api/admin/fd-interest/process-now', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Admin access required' });
     }
@@ -606,7 +606,7 @@ app.get('/api/admin/fd-interest/summary', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Admin access required' });
     }
@@ -674,7 +674,7 @@ app.get('/api/admin/branches', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Admin access required' });
     }
@@ -718,7 +718,7 @@ app.post('/api/admin/branches', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Admin access required' });
     }
@@ -790,7 +790,7 @@ app.delete('/api/admin/branches/:id', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Admin access required' });
     }
@@ -855,7 +855,7 @@ app.post('/api/agent/customers/register', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Agent access required' });
     }
@@ -935,7 +935,7 @@ app.get('/api/agent/customers', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Agent access required' });
     }
@@ -1007,7 +1007,7 @@ app.post('/api/agent/accounts/create', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Agent access required' });
     }
@@ -1158,7 +1158,7 @@ app.get('/api/agent/accounts', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Agent access required' });
     }
@@ -1201,7 +1201,7 @@ app.post('/api/agent/transactions/process', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Agent access required' });
     }
@@ -1295,7 +1295,7 @@ app.get('/api/agent/transactions/recent', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Agent access required' });
     }
@@ -1337,7 +1337,7 @@ app.get('/api/agent/performance', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Agent access required' });
     }
@@ -1437,7 +1437,7 @@ app.get('/api/manager/team/agents', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Manager' && decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Manager access required' });
     }
@@ -1518,7 +1518,7 @@ app.get('/api/manager/team/agents/:agentId/transactions', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Manager' && decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Manager access required' });
     }
@@ -1559,7 +1559,7 @@ app.get('/api/manager/transactions', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Manager' && decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Manager access required' });
     }
@@ -1637,7 +1637,7 @@ app.get('/api/manager/accounts', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Manager' && decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Manager access required' });
     }
@@ -1741,7 +1741,7 @@ app.post('/api/agent/fixed-deposits/create', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Agent access required' });
     }
@@ -1887,7 +1887,7 @@ app.get('/api/agent/accounts-with-fd', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Agent access required' });
     }
@@ -1943,7 +1943,7 @@ app.get('/api/agent/fixed-deposits', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Agent access required' });
     }
@@ -1994,7 +1994,7 @@ app.get('/api/agent/fixed-deposits/search', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Agent access required' });
     }
@@ -2058,7 +2058,7 @@ app.post('/api/agent/fixed-deposits/deactivate', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Agent access required' });
     }
@@ -2155,7 +2155,7 @@ app.get('/api/agent/all-accounts', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Agent access required' });
     }
@@ -2207,7 +2207,7 @@ app.get('/api/agent/accounts/:accountId/details', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Agent access required' });
     }
@@ -2293,7 +2293,7 @@ app.get('/api/agent/accounts/search/:searchTerm', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Agent access required' });
     }
@@ -2349,7 +2349,7 @@ app.post('/api/agent/accounts/deactivate', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Agent access required' });
     }
@@ -2634,7 +2634,7 @@ app.post('/api/admin/savings-interest/process-now', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Admin access required' });
     }
@@ -2678,7 +2678,7 @@ app.get('/api/admin/savings-interest/summary', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Admin access required' });
     }
@@ -2744,7 +2744,7 @@ app.get('/api/admin/reports/agent-transactions', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Admin access required' });
     }
@@ -2790,7 +2790,7 @@ app.get('/api/admin/reports/account-summaries', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Admin access required' });
     }
@@ -2838,7 +2838,7 @@ app.get('/api/admin/reports/active-fds', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Admin access required' });
   }
@@ -2893,7 +2893,7 @@ app.get('/api/admin/reports/interest-summary', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Admin access required' });
     }
@@ -2956,7 +2956,7 @@ app.get('/api/admin/reports/customer-activity', async (req, res) => {
   }
 
   try {
-    const decoded = jwt.verify(token, 'your_jwt_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
     if (decoded.role !== 'Admin') {
       return res.status(403).json({ message: 'Admin access required' });
     }
