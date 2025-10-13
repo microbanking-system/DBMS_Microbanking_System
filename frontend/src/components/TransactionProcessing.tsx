@@ -2,28 +2,28 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 interface TransactionFormData {
-  account_id: string;
+  account_id: number;
   transaction_type: 'Deposit' | 'Withdrawal';
   amount: string;
   description: string;
 }
 
 interface Transaction {
-  transaction_id: string;
+  transaction_id: number;
   transaction_type: string;
   amount: number;
   time: string;
   description: string;
-  account_id: string;
-  employee_id: string;
+  account_id: number;
+  employee_id: number;
 }
 
 interface Account {
-  account_id: string;
+  account_id: number;
   balance: number;
   account_status: string;
   customer_names: string;
-  saving_plan_id?: string;
+  saving_plan_id?: number;
   plan_type?: string;
   min_balance?: number;
 }
@@ -33,7 +33,7 @@ interface FormErrors {
 }
 
 interface SavingPlan {
-  saving_plan_id: string;
+  saving_plan_id: number;
   plan_type: string;
   interest: number;
   min_balance: number;
@@ -49,7 +49,7 @@ const TransactionProcessing: React.FC = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [savingPlans, setSavingPlans] = useState<SavingPlan[]>([]);
   const [formData, setFormData] = useState<TransactionFormData>({
-    account_id: '',
+    account_id: 0,
     transaction_type: 'Deposit',
     amount: '',
     description: ''
@@ -114,7 +114,7 @@ const TransactionProcessing: React.FC = () => {
 
   // NEW: Filter accounts based on search
   const filteredAccounts = accounts.filter(account =>
-    account.account_id.toLowerCase().includes(accountSearch.toLowerCase()) ||
+    account.account_id.toString().includes(accountSearch) ||
     account.customer_names.toLowerCase().includes(accountSearch.toLowerCase()) ||
     account.plan_type?.toLowerCase().includes(accountSearch.toLowerCase())
   );
@@ -139,7 +139,7 @@ const TransactionProcessing: React.FC = () => {
     if (!value.trim()) {
       setFormData(prev => ({
         ...prev,
-        account_id: ''
+        account_id: 0
       }));
     }
   };
@@ -177,7 +177,7 @@ const TransactionProcessing: React.FC = () => {
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
     
-    if (!formData.account_id.trim()) {
+    if (!formData.account_id) {
       newErrors.account_id = 'Account ID is required';
     }
     
@@ -228,7 +228,7 @@ const TransactionProcessing: React.FC = () => {
       
       setSuccessMessage(`Transaction processed successfully! Transaction ID: ${response.data.transaction_id}`);
       setFormData({
-        account_id: '',
+        account_id: 0,
         transaction_type: 'Deposit',
         amount: '',
         description: ''

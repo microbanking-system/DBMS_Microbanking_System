@@ -2,22 +2,22 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 interface Account {
-  account_id: string;
+  account_id: number;
   balance: number;
   account_status: string;
   open_date: string;
-  branch_id: string;
-  saving_plan_id: string;
+  branch_id: number;
+  saving_plan_id: number;
   plan_type: string;
   interest: number;
   min_balance: number;
   customer_names: string;
   customer_count: number;
-  fd_id: string | null;
+  fd_id: number | null;
 }
 
 interface AccountDetails {
-  account_id: string;
+  account_id: number;
   balance: number;
   account_status: string;
   open_date: string;
@@ -26,14 +26,14 @@ interface AccountDetails {
   interest: number;
   min_balance: number;
   customers: {
-    customer_id: string;
+    customer_id: number;
     first_name: string;
     last_name: string;
     nic: string;
     date_of_birth: string;
   }[];
   transactions: {
-    transaction_id: string;
+    transaction_id: number;
     transaction_type: string;
     amount: number;
     time: string;
@@ -62,7 +62,7 @@ const AccountDetailsView: React.FC = () => {
     // Filter by search term
     if (searchTerm.trim()) {
       results = results.filter(account =>
-        account.account_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        account.account_id.toString().includes(searchTerm) ||
         account.customer_names.toLowerCase().includes(searchTerm.toLowerCase()) ||
         account.plan_type.toLowerCase().includes(searchTerm.toLowerCase())
       );
@@ -94,7 +94,7 @@ const AccountDetailsView: React.FC = () => {
     }
   };
 
-  const fetchAccountDetails = async (accountId: string) => {
+  const fetchAccountDetails = async (accountId: number) => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('token');

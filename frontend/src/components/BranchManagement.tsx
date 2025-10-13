@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 interface Branch {
-  branch_id: string;
+  branch_id: number;
   name: string;
-  contact_id: string;
+  contact_id: number;
   created_at: string;
   contact_no_1: string;
   contact_no_2: string;
@@ -13,7 +13,6 @@ interface Branch {
 }
 
 interface BranchFormData {
-  branch_id: string;
   name: string;
   contact_no_1: string;
   contact_no_2: string;
@@ -28,12 +27,11 @@ interface FormErrors {
 const BranchManagement: React.FC = () => {
   const [isAddingBranch, setIsAddingBranch] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState<number | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
   const [successMessage, setSuccessMessage] = useState('');
   const [branches, setBranches] = useState<Branch[]>([]);
   const [formData, setFormData] = useState<BranchFormData>({
-    branch_id: '',
     name: '',
     contact_no_1: '',
     contact_no_2: '',
@@ -63,12 +61,6 @@ const BranchManagement: React.FC = () => {
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
-    
-    if (!formData.branch_id.trim()) {
-      newErrors.branch_id = 'Branch ID is required';
-    } else if (formData.branch_id.length < 3) {
-      newErrors.branch_id = 'Branch ID must be at least 3 characters';
-    }
     
     if (!formData.name.trim()) {
       newErrors.name = 'Branch name is required';
@@ -107,7 +99,6 @@ const BranchManagement: React.FC = () => {
       
       setSuccessMessage(`Branch "${formData.name}" created successfully!`);
       setFormData({
-        branch_id: '',
         name: '',
         contact_no_1: '',
         contact_no_2: '',
@@ -124,7 +115,7 @@ const BranchManagement: React.FC = () => {
     }
   };
 
-  const handleDeleteBranch = async (branchId: string, branchName: string) => {
+  const handleDeleteBranch = async (branchId: number, branchName: string) => {
     if (!window.confirm(`Are you sure you want to delete branch "${branchName}"? This action will also remove associated contact information.`)) {
       return;
     }
@@ -171,13 +162,7 @@ const BranchManagement: React.FC = () => {
     });
   };
 
-  const generateBranchId = () => {
-    const count = branches.length + 1;
-    setFormData(prev => ({
-      ...prev,
-      branch_id: `BR${String(count).padStart(3, '0')}`
-    }));
-  };
+
 
   return (
     <div className="branch-management">
@@ -188,10 +173,7 @@ const BranchManagement: React.FC = () => {
         </div>
         <button 
           className="btn btn-primary"
-          onClick={() => {
-            setIsAddingBranch(true);
-            generateBranchId();
-          }}
+          onClick={() => setIsAddingBranch(true)}
         >
           <span className="btn-icon">+</span> Add New Branch
         </button>
@@ -224,10 +206,7 @@ const BranchManagement: React.FC = () => {
             <p>Get started by adding your first branch to the system.</p>
             <button 
               className="btn btn-primary"
-              onClick={() => {
-                setIsAddingBranch(true);
-                generateBranchId();
-              }}
+              onClick={() => setIsAddingBranch(true)}
             >
               Add First Branch
             </button>
@@ -314,22 +293,6 @@ const BranchManagement: React.FC = () => {
 
             <form className="branch-form" onSubmit={handleAddBranch}>
               <div className="form-row">
-                <div className="form-group">
-                  <label>Branch ID *</label>
-                  <input
-                    type="text"
-                    name="branch_id"
-                    value={formData.branch_id}
-                    onChange={handleInputChange}
-                    required
-                    placeholder="e.g., BR001"
-                    className={errors.branch_id ? 'error' : ''}
-                    readOnly
-                  />
-                  {errors.branch_id && <span className="error-text">{errors.branch_id}</span>}
-                  <small className="form-help">Auto-generated branch ID</small>
-                </div>
-
                 <div className="form-group">
                   <label>Branch Name *</label>
                   <input

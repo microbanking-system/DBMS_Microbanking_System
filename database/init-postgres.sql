@@ -2,7 +2,7 @@
 -- CREATE DATABASE microbanking;
 
 -- Connect to the database
-\c microbanking;
+--\c newdb;
 
 -- Create enum types
 CREATE TYPE gender_type AS ENUM ('Male', 'Female', 'Other');
@@ -17,7 +17,7 @@ CREATE TYPE transaction_type AS ENUM ('Deposit', 'Withdrawal', 'Interest', 'Tran
 
 -- Contact table (must be created first as it's referenced by other tables)
 CREATE TABLE IF NOT EXISTS Contact (
-    contact_id VARCHAR(20) PRIMARY KEY,
+    contact_id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     type contact_type NOT NULL,
     contact_no_1 VARCHAR(15),
     contact_no_2 VARCHAR(15),
@@ -28,16 +28,16 @@ CREATE TABLE IF NOT EXISTS Contact (
 
 -- Branch table
 CREATE TABLE IF NOT EXISTS Branch (
-    branch_id VARCHAR(20) PRIMARY KEY,
+    branch_id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     name VARCHAR(50) NOT NULL,
-    contact_id VARCHAR(20) NOT NULL,
+    contact_id INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (contact_id) REFERENCES Contact(contact_id) ON DELETE RESTRICT
 );
 
 -- FDPlan table
 CREATE TABLE IF NOT EXISTS FDPlan (
-    fd_plan_id VARCHAR(20) PRIMARY KEY,
+    fd_plan_id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     fd_options fd_options_type NOT NULL,
     interest DECIMAL(5,2) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS FDPlan (
 
 -- SavingPlan table
 CREATE TABLE IF NOT EXISTS SavingPlan (
-    saving_plan_id VARCHAR(20) PRIMARY KEY,
+    saving_plan_id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     plan_type plan_type NOT NULL,
     interest DECIMAL(5,2) NOT NULL,
     min_balance DECIMAL(10,2) NOT NULL,
@@ -54,20 +54,20 @@ CREATE TABLE IF NOT EXISTS SavingPlan (
 
 -- FixedDeposit table
 CREATE TABLE IF NOT EXISTS FixedDeposit (
-    fd_id VARCHAR(20) PRIMARY KEY,
+    fd_id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     fd_balance DECIMAL(15,2) NOT NULL,
     auto_renewal_status auto_renewal_status_type NOT NULL,
     fd_status fd_status_type NOT NULL,
     open_date DATE NOT NULL,
     maturity_date DATE NOT NULL,
-    fd_plan_id VARCHAR(20) NOT NULL,
+    fd_plan_id INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (fd_plan_id) REFERENCES FDPlan(fd_plan_id) ON DELETE RESTRICT
 );
 
 -- Employee table - UPDATED to match frontend
 CREATE TABLE IF NOT EXISTS Employee (
-    employee_id VARCHAR(20) PRIMARY KEY,
+    employee_id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     role employee_role NOT NULL,
     username VARCHAR(20) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
@@ -76,8 +76,8 @@ CREATE TABLE IF NOT EXISTS Employee (
     nic VARCHAR(15) NOT NULL,
     gender gender_type NOT NULL,
     date_of_birth DATE NOT NULL,
-    branch_id VARCHAR(20) NOT NULL,
-    contact_id VARCHAR(20) NOT NULL,
+    branch_id INTEGER NOT NULL,
+    contact_id INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (branch_id) REFERENCES Branch(branch_id) ON DELETE RESTRICT,
     FOREIGN KEY (contact_id) REFERENCES Contact(contact_id) ON DELETE RESTRICT
@@ -85,26 +85,26 @@ CREATE TABLE IF NOT EXISTS Employee (
 
 -- Customer table
 CREATE TABLE IF NOT EXISTS Customer (
-    customer_id VARCHAR(20) PRIMARY KEY,
+    customer_id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
     gender gender_type NOT NULL,
     nic VARCHAR(15) NOT NULL,
     date_of_birth DATE NOT NULL,
-    contact_id VARCHAR(20) NOT NULL,
+    contact_id INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (contact_id) REFERENCES Contact(contact_id) ON DELETE RESTRICT
 );
 
 -- Account table
 CREATE TABLE IF NOT EXISTS Account (
-    account_id VARCHAR(20) PRIMARY KEY,
+    account_id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     open_date DATE NOT NULL,
     account_status account_status_type NOT NULL,
     balance DECIMAL(15,2) NOT NULL DEFAULT 0.00,
-    saving_plan_id VARCHAR(20),
-    fd_id VARCHAR(20),
-    branch_id VARCHAR(20) NOT NULL,
+    saving_plan_id INTEGER,
+    fd_id INTEGER,
+    branch_id INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (saving_plan_id) REFERENCES SavingPlan(saving_plan_id) ON DELETE SET NULL,
     FOREIGN KEY (fd_id) REFERENCES FixedDeposit(fd_id) ON DELETE SET NULL,
@@ -113,13 +113,13 @@ CREATE TABLE IF NOT EXISTS Account (
 
 -- Transaction table - IMPROVED with transaction type
 CREATE TABLE IF NOT EXISTS Transaction (
-    transaction_id VARCHAR(20) PRIMARY KEY,
+    transaction_id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     transaction_type transaction_type NOT NULL,
     amount DECIMAL(12,2) NOT NULL,
     time TIMESTAMP NOT NULL,
     description VARCHAR(100),
-    account_id VARCHAR(20) NOT NULL,
-    employee_id VARCHAR(20) NOT NULL,
+    account_id INTEGER NOT NULL,
+    employee_id INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (account_id) REFERENCES Account(account_id) ON DELETE RESTRICT,
     FOREIGN KEY (employee_id) REFERENCES Employee(employee_id) ON DELETE RESTRICT
@@ -127,9 +127,9 @@ CREATE TABLE IF NOT EXISTS Transaction (
 
 -- Takes table (junction table for Customer-Account relationship)
 CREATE TABLE IF NOT EXISTS Takes (
-    takes_id VARCHAR(20) PRIMARY KEY,
-    customer_id VARCHAR(20) NOT NULL,
-    account_id VARCHAR(20) NOT NULL,
+    takes_id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    customer_id INTEGER NOT NULL,
+    account_id INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES Customer(customer_id) ON DELETE CASCADE,
     FOREIGN KEY (account_id) REFERENCES Account(account_id) ON DELETE CASCADE,
@@ -139,11 +139,11 @@ CREATE TABLE IF NOT EXISTS Takes (
 -- Table to track FD interest calculations
 CREATE TABLE IF NOT EXISTS fd_interest_calculations (
     id SERIAL PRIMARY KEY,
-    fd_id VARCHAR(20) NOT NULL,
+    fd_id INTEGER NOT NULL,
     calculation_date DATE NOT NULL,
     interest_amount DECIMAL(15,2) NOT NULL,
     days_in_period INTEGER NOT NULL,
-    credited_to_account_id VARCHAR(20) NOT NULL,
+    credited_to_account_id INTEGER NOT NULL,
     credited_at TIMESTAMP,
     status VARCHAR(20) DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -164,7 +164,7 @@ CREATE TABLE IF NOT EXISTS fd_interest_periods (
 -- Table to track savings interest calculations
 CREATE TABLE IF NOT EXISTS savings_interest_calculations (
     id SERIAL PRIMARY KEY,
-    account_id VARCHAR(20) NOT NULL,
+    account_id INTEGER NOT NULL,
     calculation_date DATE NOT NULL,
     interest_amount DECIMAL(15,2) NOT NULL,
     interest_rate DECIMAL(5,2) NOT NULL,
@@ -197,13 +197,7 @@ CREATE INDEX IF NOT EXISTS idx_fd_interest_status ON fd_interest_calculations(st
 CREATE INDEX IF NOT EXISTS idx_fd_interest_calculation_date ON fd_interest_calculations(calculation_date);
 CREATE INDEX IF NOT EXISTS idx_fd_interest_periods_processed ON fd_interest_periods(is_processed);
 
--- Create sequences for ID generation (Optional but recommended)
-CREATE SEQUENCE IF NOT EXISTS contact_id_seq;
-CREATE SEQUENCE IF NOT EXISTS branch_id_seq;
-CREATE SEQUENCE IF NOT EXISTS employee_id_seq;
-CREATE SEQUENCE IF NOT EXISTS customer_id_seq;
-CREATE SEQUENCE IF NOT EXISTS account_id_seq;
-CREATE SEQUENCE IF NOT EXISTS transaction_id_seq;
+-- Sequences are created automatically by IDENTITY columns above where required
 
 
 

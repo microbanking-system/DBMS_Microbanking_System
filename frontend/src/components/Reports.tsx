@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import axios from 'axios';
 
 interface AgentTransactionReport {
-  employee_id: string;
+  employee_id: number;
   employee_name: string;
   total_transactions: number;
   total_deposits: number;
@@ -11,7 +11,7 @@ interface AgentTransactionReport {
 }
 
 interface AccountTransactionSummary {
-  account_id: string;
+  account_id: number;
   customer_names: string;
   total_deposits: number;
   total_withdrawals: number;
@@ -20,8 +20,8 @@ interface AccountTransactionSummary {
 }
 
 interface ActiveFDReport {
-  fd_id: string;
-  account_id: string;
+  fd_id: number;
+  account_id: number;
   customer_names: string;
   fd_balance: number;
   interest_rate: number;
@@ -40,7 +40,7 @@ interface MonthlyInterestSummary {
 }
 
 interface CustomerActivityReport {
-  customer_id: string;
+  customer_id: number;
   customer_name: string;
   total_deposits: number;
   total_withdrawals: number;

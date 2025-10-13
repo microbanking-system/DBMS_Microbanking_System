@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 interface Account {
-  account_id: string;
+  account_id: number;
   open_date: string;
   account_status: string;
   balance: number;
-  saving_plan_id: string;
-  branch_id: string;
-  customer_id: string;
+  saving_plan_id: number;
+  branch_id: number;
+  customer_id: number;
   first_name: string;
   last_name: string;
   nic: string;
@@ -111,7 +111,7 @@ const CustomerAccounts: React.FC = () => {
   const filteredAccounts = accounts
     .filter(account => {
       const matchesSearch = 
-        account.account_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        account.account_id.toString().includes(searchTerm) ||
         account.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         account.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         account.nic.toLowerCase().includes(searchTerm.toLowerCase());

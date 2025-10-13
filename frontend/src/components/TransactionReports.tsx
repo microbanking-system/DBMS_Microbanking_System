@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 interface BranchTransaction {
-  transaction_id: string;
+  transaction_id: number;
   transaction_type: string;
   amount: number;
   time: string;
   description: string;
-  account_id: string;
-  employee_id: string;
+  account_id: number;
+  employee_id: number;
   employee_name: string;
 }
 

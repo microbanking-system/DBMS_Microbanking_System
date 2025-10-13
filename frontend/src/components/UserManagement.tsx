@@ -10,7 +10,7 @@ interface UserFormData {
   nic: string;
   gender: string;
   date_of_birth: string;
-  branch_id: string;
+  branch_id: number;
   // Contact fields - no more contact_id
   contact_no_1: string;
   contact_no_2: string;
@@ -19,7 +19,7 @@ interface UserFormData {
 }
 
 interface User {
-  employee_id: string;
+  employee_id: number;
   username: string;
   first_name: string;
   last_name: string;
@@ -27,8 +27,8 @@ interface User {
   nic: string;
   gender: string;
   date_of_birth: string;
-  branch_id: string;
-  contact_id: string;
+  branch_id: number;
+  contact_id: number;
   created_at: string;
 }
 
@@ -39,7 +39,7 @@ interface FormErrors {
 const UserManagement: React.FC = () => {
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState<number | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
   const [successMessage, setSuccessMessage] = useState('');
   const [users, setUsers] = useState<User[]>([]);
@@ -52,7 +52,7 @@ const UserManagement: React.FC = () => {
     nic: '',
     gender: 'Male',
     date_of_birth: '',
-    branch_id: '',
+    branch_id: 0,
     contact_no_1: '',
     contact_no_2: '',
     address: '',
@@ -106,7 +106,7 @@ const UserManagement: React.FC = () => {
       newErrors.nic = 'NIC is required';
     }
     
-    if (!formData.branch_id.trim()) {
+    if (!formData.branch_id) {
       newErrors.branch_id = 'Branch ID is required';
     }
     
@@ -153,7 +153,7 @@ const UserManagement: React.FC = () => {
         nic: '',
         gender: 'Male',
         date_of_birth: '',
-        branch_id: '',
+        branch_id: 0,
         contact_no_1: '',
         contact_no_2: '',
         address: '',
@@ -169,7 +169,7 @@ const UserManagement: React.FC = () => {
     }
   };
 
-  const handleDeleteUser = async (employeeId: string, userName: string) => {
+  const handleDeleteUser = async (employeeId: number, userName: string) => {
     if (!window.confirm(`Are you sure you want to delete user "${userName}"? This action cannot be undone.`)) {
       return;
     }
@@ -479,7 +479,7 @@ const UserManagement: React.FC = () => {
                   value={formData.branch_id}
                   onChange={handleInputChange}
                   required
-                  placeholder="e.g., BR001"
+                  placeholder="e.g., 0"
                   className={errors.branch_id ? 'error' : ''}
                 />
                 {errors.branch_id && <span className="error-text">{errors.branch_id}</span>}

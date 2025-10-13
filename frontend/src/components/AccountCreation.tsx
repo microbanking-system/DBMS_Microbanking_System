@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 interface Customer {
-  customer_id: string;
+  customer_id: number;
   first_name: string;
   last_name: string;
   nic: string;
@@ -10,22 +10,22 @@ interface Customer {
 }
 
 interface AccountFormData {
-  customer_id: string;
-  saving_plan_id: string;
+  customer_id: number;
+  saving_plan_id: number;
   initial_deposit: number;
-  branch_id: string;
-  joint_holders?: string[]; // Array of customer IDs for joint account
+  branch_id: number;
+  joint_holders?: number[]; // Array of customer IDs for joint account
 }
 
 interface SavingPlan {
-  saving_plan_id: string;
+  saving_plan_id: number;
   plan_type: string;
   interest: number;
   min_balance: number;
 }
 
 interface Branch {
-  branch_id: string;
+  branch_id: number;
   name: string;
 }
 
@@ -34,13 +34,13 @@ interface FormErrors {
 }
 
 interface ExistingAccount {
-  account_id: string;
+  account_id: number;
   balance: number;
   account_status: string;
   open_date: string;
-  branch_id: string;
-  saving_plan_id: string;
-  fd_id: string | null;
+  branch_id: number;
+  saving_plan_id: number;
+  fd_id: number | null;
   plan_type: string;
   interest: number;
   min_balance: number;
@@ -75,10 +75,10 @@ const AccountCreation: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   
   const [formData, setFormData] = useState<AccountFormData>({
-    customer_id: '',
-    saving_plan_id: '',
+    customer_id: 0,
+    saving_plan_id: 0,
     initial_deposit: 0,
-    branch_id: ''
+    branch_id: 0
   });
 
   // Fetch data on component mount
@@ -105,7 +105,7 @@ const AccountCreation: React.FC = () => {
         customer.first_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
         customer.last_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
         customer.nic.includes(customerSearchTerm) ||
-        customer.customer_id.toLowerCase().includes(customerSearchTerm.toLowerCase())
+        customer.customer_id.toString().includes(customerSearchTerm)
       );
       setCustomerSearchResults(results.slice(0, 5)); // Limit to 5 results
     } else {
@@ -123,7 +123,7 @@ const AccountCreation: React.FC = () => {
           customer.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           customer.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           customer.nic.includes(searchTerm) ||
-          customer.customer_id.toLowerCase().includes(searchTerm.toLowerCase())
+          customer.customer_id.toString().includes(searchTerm)
         )
       );
       setSearchResults(results.slice(0, 5)); // Limit to 5 results
@@ -181,7 +181,7 @@ const AccountCreation: React.FC = () => {
     
     // Simple client-side search
     const results = existingAccounts.filter(account =>
-      account.account_id.toLowerCase().includes(searchAccountId.toLowerCase()) ||
+      account.account_id.toString().includes(searchAccountId) ||
       account.customer_names.toLowerCase().includes(searchAccountId.toLowerCase()) ||
       account.plan_type.toLowerCase().includes(searchAccountId.toLowerCase())
     );
@@ -190,7 +190,7 @@ const AccountCreation: React.FC = () => {
     setIsSearching(false);
   };
 
-  const deactivateAccount = async (accountId: string, balance: number, customerNames: string) => {
+  const deactivateAccount = async (accountId: number, balance: number, customerNames: string) => {
   if (!window.confirm(
     `Are you sure you want to deactivate Account ${accountId}?\n\n` +
     `• Customer: ${customerNames}\n` +
@@ -321,10 +321,10 @@ const AccountCreation: React.FC = () => {
       
       setSuccessMessage(`Account created successfully! Account Number: ${response.data.account_id}`);
       setFormData({
-        customer_id: '',
-        saving_plan_id: '',
+        customer_id: 0,
+        saving_plan_id: 0,
         initial_deposit: 0,
-        branch_id: ''
+        branch_id: 0
       });
       setSelectedCustomer(null);
       setSelectedPlan(null);
@@ -361,7 +361,7 @@ const AccountCreation: React.FC = () => {
 
     // Update selected plan when it changes
     if (name === 'saving_plan_id') {
-      const plan = savingPlans.find(p => p.saving_plan_id === value);
+      const plan = savingPlans.find(p => p.saving_plan_id === parseInt(value));
       setSelectedPlan(plan || null);
       // Clear joint holders if plan is changed from Joint to something else
       if (plan?.plan_type !== 'Joint') {
@@ -394,7 +394,7 @@ const AccountCreation: React.FC = () => {
   const removeSelectedCustomer = () => {
     setFormData(prev => ({
       ...prev,
-      customer_id: ''
+      customer_id: 0
     }));
     setSelectedCustomer(null);
     setCustomerSearchTerm('');
@@ -409,7 +409,7 @@ const AccountCreation: React.FC = () => {
     }
   };
 
-  const removeJointHolder = (customerId: string) => {
+  const removeJointHolder = (customerId: number) => {
     setJointHolders(prev => prev.filter(holder => holder.customer_id !== customerId));
   };
 
@@ -791,10 +791,10 @@ const AccountCreation: React.FC = () => {
                 className="btn btn-secondary"
                 onClick={() => {
                   setFormData({
-                    customer_id: '',
-                    saving_plan_id: '',
+                    customer_id: 0,
+                    saving_plan_id: 0,
                     initial_deposit: 0,
-                    branch_id: ''
+                    branch_id: 0
                   });
                   setSelectedCustomer(null);
                   setSelectedPlan(null);
@@ -880,39 +880,61 @@ const AccountCreation: React.FC = () => {
                       {getStatusBadge(account.account_status)}
                     </div>
                     <div className="account-details">
-                      <div className="account-detail">
-                        <span>Customer(s):</span>
-                        <strong>{account.customer_names}</strong>
-                        {account.customer_count > 1 && (
-                          <small className="joint-badge">Joint Account ({account.customer_count})</small>
-                        )}
+                      <div className="account-detail-row">
+                        <div className="detail-label">Customer(s):</div>
+                        <div className="detail-value">
+                          <div className="customer-info">
+                            <strong>{account.customer_names}</strong>
+                            {account.customer_count > 1 && (
+                              <small className="joint-badge">Joint Account ({account.customer_count})</small>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="account-detail">
-                        <span>Plan Type:</span>
-                        <strong>{account.plan_type}</strong>
+                      
+                      <div className="account-detail-row">
+                        <div className="detail-label">Plan Type:</div>
+                        <div className="detail-value">
+                          <strong>{account.plan_type}</strong>
+                        </div>
                       </div>
-                      <div className="account-detail">
-                        <span>Current Balance:</span>
-                        <strong className={account.balance > 0 ? 'text-success' : 'text-muted'}>
-                          LKR {account.balance.toLocaleString()}
-                        </strong>
+                      
+                      <div className="account-detail-row">
+                        <div className="detail-label">Current Balance:</div>
+                        <div className="detail-value">
+                          <strong className={account.balance > 0 ? 'text-success' : 'text-muted'}>
+                            LKR {account.balance.toLocaleString()}
+                          </strong>
+                        </div>
                       </div>
-                      <div className="account-detail">
-                        <span>Minimum Balance:</span>
-                        <strong>LKR {account.min_balance.toLocaleString()}</strong>
+                      
+                      <div className="account-detail-row">
+                        <div className="detail-label">Minimum Balance:</div>
+                        <div className="detail-value">
+                          <strong>LKR {account.min_balance.toLocaleString()}</strong>
+                        </div>
                       </div>
-                      <div className="account-detail">
-                        <span>Open Date:</span>
-                        <strong>{new Date(account.open_date).toLocaleDateString()}</strong>
+                      
+                      <div className="account-detail-row">
+                        <div className="detail-label">Open Date:</div>
+                        <div className="detail-value">
+                          <strong>{new Date(account.open_date).toLocaleDateString()}</strong>
+                        </div>
                       </div>
-                      <div className="account-detail">
-                        <span>Interest Rate:</span>
-                        <strong>{account.interest}%</strong>
+                      
+                      <div className="account-detail-row">
+                        <div className="detail-label">Interest Rate:</div>
+                        <div className="detail-value">
+                          <strong>{account.interest}%</strong>
+                        </div>
                       </div>
+                      
                       {account.fd_id && (
-                        <div className="account-detail">
-                          <span>Fixed Deposit:</span>
-                          <strong className="text-warning">{account.fd_id} (Active)</strong>
+                        <div className="account-detail-row">
+                          <div className="detail-label">Fixed Deposit:</div>
+                          <div className="detail-value">
+                            <strong className="text-warning">{account.fd_id} (Active)</strong>
+                          </div>
                         </div>
                       )}
                     </div>

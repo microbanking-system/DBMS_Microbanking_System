@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 interface Customer {
-  customer_id: string;
+  customer_id: number;
   first_name: string;
   last_name: string;
   nic: string;
@@ -10,16 +10,16 @@ interface Customer {
 }
 
 interface FdPlan {
-  fd_plan_id: string;
+  fd_plan_id: number;
   fd_options: string;
   interest: number;
 }
 
 interface Account {
-  account_id: string;
+  account_id: number;
   balance: number;
   customer_names: string;
-  fd_id: string | null;
+  fd_id: number | null;
   min_balance: number;
   interest: number;
   plan_type: string; // Add plan_type to identify joint accounts
@@ -27,9 +27,9 @@ interface Account {
 }
 
 interface FdFormData {
-  customer_id: string;
-  account_id: string;
-  fd_plan_id: string;
+  customer_id: number;
+  account_id: number;
+  fd_plan_id: number;
   principal_amount: number;
   auto_renewal_status: string;
 }
@@ -39,7 +39,7 @@ interface FormErrors {
 }
 
 interface ExistingFD {
-  fd_id: string;
+  fd_id: number;
   fd_balance: number;
   fd_status: string;
   open_date: string;
@@ -47,7 +47,7 @@ interface ExistingFD {
   auto_renewal_status: string;
   fd_options: string;
   interest: number;
-  account_id: string;
+  account_id: number;
   customer_names: string;
 }
 
@@ -76,9 +76,9 @@ const FixedDepositCreation: React.FC = () => {
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
   
   const [formData, setFormData] = useState<FdFormData>({
-    customer_id: '',
-    account_id: '',
-    fd_plan_id: '',
+    customer_id: 0,
+    account_id: 0,
+    fd_plan_id: 0,
     principal_amount: 0,
     auto_renewal_status: 'False'
   });
@@ -107,7 +107,7 @@ const FixedDepositCreation: React.FC = () => {
         customer.first_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
         customer.last_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
         customer.nic.includes(customerSearchTerm) ||
-        customer.customer_id.toLowerCase().includes(customerSearchTerm.toLowerCase())
+        customer.customer_id.toString().includes(customerSearchTerm)
       );
       setCustomerSearchResults(results.slice(0, 5)); // Limit to 5 results
     } else {
@@ -174,10 +174,10 @@ const FixedDepositCreation: React.FC = () => {
       const searchTerm = searchFdId.toLowerCase();
       const results = existingFDs.filter(fd => {
         // Check FD ID
-        if (fd.fd_id.toLowerCase().includes(searchTerm)) return true;
+        if (fd.fd_id.toString().includes(searchTerm)) return true;
         
         // Check account ID
-        if (fd.account_id.toLowerCase().includes(searchTerm)) return true;
+        if (fd.account_id.toString().includes(searchTerm)) return true;
         
         // Check customer names (handle multiple customers)
         if (fd.customer_names.toLowerCase().includes(searchTerm)) return true;
@@ -192,7 +192,7 @@ const FixedDepositCreation: React.FC = () => {
     }
   };
   
-  const deactivateFD = async (fdId: string, principalAmount: number, accountId: string) => {
+  const deactivateFD = async (fdId: number, principalAmount: number, accountId: number) => {
   if (!window.confirm(
     `Are you sure you want to deactivate Fixed Deposit ${fdId}?\n\n` +
     `• Principal Amount: LKR ${principalAmount.toLocaleString()}\n` +
@@ -387,9 +387,9 @@ const FixedDepositCreation: React.FC = () => {
       
       setSuccessMessage(`Fixed Deposit created successfully! FD Account: ${response.data.fd_account_number}`);
       setFormData({
-        customer_id: '',
-        account_id: '',
-        fd_plan_id: '',
+        customer_id: 0,
+        account_id: 0,
+        fd_plan_id: 0,
         principal_amount: 0,
         auto_renewal_status: 'False'
       });
@@ -428,10 +428,10 @@ const FixedDepositCreation: React.FC = () => {
 
     // Update selected items when they change
     if (name === 'fd_plan_id') {
-      const plan = fdPlans.find(p => p.fd_plan_id === value);
+      const plan = fdPlans.find(p => p.fd_plan_id === parseInt(value));
       setSelectedPlan(plan || null);
     } else if (name === 'account_id') {
-      const account = accounts.find(a => a.account_id === value);
+      const account = accounts.find(a => a.account_id === parseInt(value));
       setSelectedAccount(account || null);
     }
   };
@@ -440,7 +440,7 @@ const FixedDepositCreation: React.FC = () => {
     setFormData(prev => ({
       ...prev,
       customer_id: customer.customer_id,
-      account_id: '' // Reset account selection when customer changes
+      account_id: 0 // Reset account selection when customer changes
     }));
     setSelectedCustomer(customer);
     setSelectedAccount(null);
@@ -461,8 +461,8 @@ const FixedDepositCreation: React.FC = () => {
   const removeSelectedCustomer = () => {
     setFormData(prev => ({
       ...prev,
-      customer_id: '',
-      account_id: ''
+      customer_id: 0,
+      account_id: 0
     }));
     setSelectedCustomer(null);
     setSelectedAccount(null);
@@ -780,9 +780,9 @@ const FixedDepositCreation: React.FC = () => {
                 className="btn btn-secondary"
                 onClick={() => {
                   setFormData({
-                    customer_id: '',
-                    account_id: '',
-                    fd_plan_id: '',
+                    customer_id: 0,
+                    account_id: 0,
+                    fd_plan_id: 0,
                     principal_amount: 0,
                     auto_renewal_status: 'False'
                   });

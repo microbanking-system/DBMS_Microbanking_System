@@ -16,7 +16,7 @@ app.use(express.json());
 const pool = new Pool({
   user: 'postgres',
   host: 'localhost',
-  database: 'microbanking',
+  database: 'newdb',
   password: '123',
   port: 5432,
 });
@@ -124,20 +124,16 @@ const processMonthlyFDInterest = async () => {
             [newBalance, fd.linked_account_id]
           );
 
-          // Generate transaction ID for interest credit
-          const transactionCount = await client.query('SELECT COUNT(*) as count FROM transaction');
-          const transactionId = `TXN${String(parseInt(transactionCount.rows[0].count) + 1).padStart(3, '0')}`;
-
           // Create interest credit transaction (use system user or find an admin)
           const adminUser = await client.query(
             "SELECT employee_id FROM employee WHERE role = 'Admin' LIMIT 1"
           );
-          const employeeId = adminUser.rows.length > 0 ? adminUser.rows[0].employee_id : 'A001'; // Fallback
+          const employeeId = adminUser.rows.length > 0 ? adminUser.rows[0].employee_id : 1; // Fallback to admin ID 1
 
           await client.query(
-            `INSERT INTO transaction (transaction_id, transaction_type, amount, time, description, account_id, employee_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [transactionId, 'Interest', interestAmount, today,
+            `INSERT INTO transaction (transaction_type, amount, time, description, account_id, employee_id)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            ['Interest', interestAmount, today,
              `Monthly FD Interest - ${fd.fd_options} Plan`, fd.linked_account_id, employeeId]
           );
 
@@ -205,18 +201,15 @@ const processMonthlyFDInterest = async () => {
         );
 
         // Create transaction for principal return
-        const transactionCount = await client.query('SELECT COUNT(*) as count FROM transaction');
-        const transactionId = `TXN${String(parseInt(transactionCount.rows[0].count) + 1).padStart(3, '0')}`;
-
         const adminUser = await client.query(
           "SELECT employee_id FROM employee WHERE role = 'Admin' LIMIT 1"
         );
-        const employeeId = adminUser.rows.length > 0 ? adminUser.rows[0].employee_id : 'A001';
+        const employeeId = adminUser.rows.length > 0 ? adminUser.rows[0].employee_id : 1;
 
         await client.query(
-          `INSERT INTO transaction (transaction_id, transaction_type, amount, time, description, account_id, employee_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [transactionId, 'Deposit', fd.principal_amount, today,
+          `INSERT INTO transaction (transaction_type, amount, time, description, account_id, employee_id)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          ['Deposit', fd.principal_amount, today,
            `FD Maturity - Principal Return`, fd.linked_account_id, employeeId]
         );
 
@@ -359,46 +352,35 @@ app.post('/api/admin/register', async (req, res) => {
         return res.status(400).json({ message: 'Username already exists' });
       }
 
-      // Generate employee ID based on role
-      const countQuery = 'SELECT COUNT(*) as count FROM employee WHERE role = $1';
-      const countResult = await client.query(countQuery, [role]);
-      const count = parseInt(countResult.rows[0].count);
-      const prefix = role.charAt(0).toUpperCase();
-      const employee_id = `${prefix}${String(count + 1).padStart(3, '0')}`;
-
-      // Generate contact ID
-      const contactCountQuery = 'SELECT COUNT(*) as count FROM contact';
-      const contactCountResult = await client.query(contactCountQuery);
-      const contactCount = parseInt(contactCountResult.rows[0].count);
-      const contact_id = `CT${String(contactCount + 1).padStart(3, '0')}`;
-
-      // Create contact record
+      // Create contact record (auto-generated ID)
       const insertContactQuery = `
-        INSERT INTO contact (contact_id, type, contact_no_1, contact_no_2, address, email)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO contact (type, contact_no_1, contact_no_2, address, email)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING contact_id
       `;
       
-      await client.query(insertContactQuery, [
-        contact_id, 
+      const contactResult = await client.query(insertContactQuery, [
         'employee', 
         contact_no_1, 
         contact_no_2 || null, 
         address, 
         email
       ]);
+      
+      const contact_id = contactResult.rows[0].contact_id;
 
       // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // Insert new employee
+      // Insert new employee (auto-generated ID)
       const insertEmployeeQuery = `
-        INSERT INTO employee (employee_id, role, username, password, first_name, last_name, nic, gender, date_of_birth, branch_id, contact_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        INSERT INTO employee (role, username, password, first_name, last_name, nic, gender, date_of_birth, branch_id, contact_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING employee_id
       `;
       
       const insertResult = await client.query(insertEmployeeQuery, [
-        employee_id, role, username, hashedPassword, first_name, last_name, 
+        role, username, hashedPassword, first_name, last_name, 
         nic, gender, date_of_birth, branch_id, contact_id
       ]);
 
@@ -760,29 +742,31 @@ app.post('/api/admin/branches', async (req, res) => {
         return res.status(400).json({ message: 'Branch ID already exists' });
       }
 
-      // Generate contact ID
-      const contactCount = await client.query('SELECT COUNT(*) as count FROM contact');
-      const contactId = `CT${String(parseInt(contactCount.rows[0].count) + 1).padStart(3, '0')}`;
-
-      // Create contact record
-      await client.query(
-        `INSERT INTO contact (contact_id, type, contact_no_1, contact_no_2, address, email)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [contactId, 'branch', contact_no_1, contact_no_2 || null, address, email]
+      // Create contact record (auto-generated ID)
+      const contactResult = await client.query(
+        `INSERT INTO contact (type, contact_no_1, contact_no_2, address, email)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING contact_id`,
+        ['branch', contact_no_1, contact_no_2 || null, address, email]
       );
 
-      // Create branch record
-      await client.query(
-        `INSERT INTO branch (branch_id, name, contact_id)
-         VALUES ($1, $2, $3)`,
-        [branch_id, name, contactId]
+      const contactId = contactResult.rows[0].contact_id;
+
+      // Create branch record (auto-generated ID)
+      const branchResult = await client.query(
+        `INSERT INTO branch (name, contact_id)
+         VALUES ($1, $2)
+         RETURNING branch_id`,
+        [name, contactId]
       );
+
+      const newBranchId = branchResult.rows[0].branch_id;
 
       await client.query('COMMIT');
       
       res.status(201).json({ 
         message: 'Branch created successfully',
-        branch_id: branch_id
+        branch_id: newBranchId
       });
     } catch (error) {
       await client.query('ROLLBACK');
@@ -903,27 +887,25 @@ app.post('/api/agent/customers/register', async (req, res) => {
         return res.status(400).json({ message: 'Customer with this NIC already exists' });
       }
 
-      // Generate customer ID
-      const customerCount = await client.query('SELECT COUNT(*) as count FROM customer');
-      const customerId = `CUST${String(parseInt(customerCount.rows[0].count) + 1).padStart(3, '0')}`;
-
-      // Generate contact ID
-      const contactCount = await client.query('SELECT COUNT(*) as count FROM contact');
-      const contactId = `CT${String(parseInt(contactCount.rows[0].count) + 1).padStart(3, '0')}`;
-
-      // Create contact record
-      await client.query(
-        `INSERT INTO contact (contact_id, type, contact_no_1, contact_no_2, address, email)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [contactId, 'customer', contact_no_1, contact_no_2 || null, address, email]
+      // Create contact record (auto-generated ID)
+      const contactResult = await client.query(
+        `INSERT INTO contact (type, contact_no_1, contact_no_2, address, email)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING contact_id`,
+        ['customer', contact_no_1, contact_no_2 || null, address, email]
       );
 
-      // Create customer record
-      await client.query(
-        `INSERT INTO customer (customer_id, first_name, last_name, gender, nic, date_of_birth, contact_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [customerId, first_name, last_name, gender, nic, date_of_birth, contactId]
+      const contactId = contactResult.rows[0].contact_id;
+
+      // Create customer record (auto-generated ID)
+      const customerResult = await client.query(
+        `INSERT INTO customer (first_name, last_name, gender, nic, date_of_birth, contact_id)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING customer_id`,
+        [first_name, last_name, gender, nic, date_of_birth, contactId]
       );
+
+      const customerId = customerResult.rows[0].customer_id;
 
       await client.query('COMMIT');
       
@@ -1113,48 +1095,38 @@ app.post('/api/agent/accounts/create', async (req, res) => {
         return res.status(400).json({ message: 'Branch not found' });
       }
 
-      // Generate account ID
-      const accountCount = await client.query('SELECT COUNT(*) as count FROM account');
-      const accountId = `ACC${String(parseInt(accountCount.rows[0].count) + 1).padStart(3, '0')}`;
-
-      // Create account record
-      await client.query(
-        `INSERT INTO account (account_id, open_date, account_status, balance, saving_plan_id, branch_id)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [accountId, new Date().toISOString().split('T')[0], 'Active', initial_deposit, saving_plan_id, branch_id]
+      // Create account record (auto-generated ID)
+      const accountResult = await client.query(
+        `INSERT INTO account (open_date, account_status, balance, saving_plan_id, branch_id)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING account_id`,
+        [new Date().toISOString().split('T')[0], 'Active', initial_deposit, saving_plan_id, branch_id]
       );
 
-      // Create takes relationship for primary customer
-      const takesCount = await client.query('SELECT COUNT(*) as count FROM takes');
-      let takesIdCounter = parseInt(takesCount.rows[0].count) + 1;
+      const accountId = accountResult.rows[0].account_id;
 
+      // Create takes relationship for primary customer (auto-generated ID)
       await client.query(
-        `INSERT INTO takes (takes_id, customer_id, account_id)
-         VALUES ($1, $2, $3)`,
-        [`T${String(takesIdCounter).padStart(3, '0')}`, customer_id, accountId]
+        `INSERT INTO takes (customer_id, account_id)
+         VALUES ($1, $2)`,
+        [customer_id, accountId]
       );
 
-      takesIdCounter++;
-
-      // Create takes relationships for joint holders
+      // Create takes relationships for joint holders (auto-generated ID)
       for (const jointCustomerId of joint_holders) {
         await client.query(
-          `INSERT INTO takes (takes_id, customer_id, account_id)
-           VALUES ($1, $2, $3)`,
-          [`T${String(takesIdCounter).padStart(3, '0')}`, jointCustomerId, accountId]
+          `INSERT INTO takes (customer_id, account_id)
+           VALUES ($1, $2)`,
+          [jointCustomerId, accountId]
         );
-        takesIdCounter++;
       }
 
-      // Create initial transaction if deposit > 0
+      // Create initial transaction if deposit > 0 (auto-generated ID)
       if (initial_deposit > 0) {
-        const transactionCount = await client.query('SELECT COUNT(*) as count FROM transaction');
-        const transactionId = `TXN${String(parseInt(transactionCount.rows[0].count) + 1).padStart(3, '0')}`;
-
         await client.query(
-          `INSERT INTO transaction (transaction_id, transaction_type, amount, time, description, account_id, employee_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [transactionId, 'Deposit', initial_deposit, new Date(), 'Initial Deposit', accountId, decoded.id]
+          `INSERT INTO transaction (transaction_type, amount, time, description, account_id, employee_id)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          ['Deposit', initial_deposit, new Date(), 'Initial Deposit', accountId, decoded.id]
         );
       }
 
@@ -1284,16 +1256,15 @@ app.post('/api/agent/transactions/process', async (req, res) => {
         [newBalance, account_id]
       );
 
-      // Generate transaction ID
-      const transactionCount = await client.query('SELECT COUNT(*) as count FROM transaction');
-      const transactionId = `TXN${String(parseInt(transactionCount.rows[0].count) + 1).padStart(3, '0')}`;
-
-      // Create transaction record
-      await client.query(
-        `INSERT INTO transaction (transaction_id, transaction_type, amount, time, description, account_id, employee_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [transactionId, transaction_type, amount, new Date(), description, account_id, decoded.id]
+      // Create transaction record (auto-generated ID)
+      const transactionResult = await client.query(
+        `INSERT INTO transaction (transaction_type, amount, time, description, account_id, employee_id)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING transaction_id`,
+        [transaction_type, amount, new Date(), description, account_id, decoded.id]
       );
+
+      const transactionId = transactionResult.rows[0].transaction_id;
 
       await client.query('COMMIT');
       
@@ -1856,16 +1827,15 @@ app.post('/api/agent/fixed-deposits/create', async (req, res) => {
           break;
       }
 
-      // Generate FD account ID
-      const fdCount = await client.query('SELECT COUNT(*) as count FROM fixeddeposit');
-      const fdId = `FD${String(parseInt(fdCount.rows[0].count) + 1).padStart(3, '0')}`;
-
-      // Create fixed deposit record
-      await client.query(
-        `INSERT INTO fixeddeposit (fd_id, fd_balance, auto_renewal_status, fd_status, open_date, maturity_date, fd_plan_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [fdId, principal_amount, auto_renewal_status, 'Active', openDate, maturityDate, fd_plan_id]
+      // Create fixed deposit record (auto-generated ID)
+      const fdResult = await client.query(
+        `INSERT INTO fixeddeposit (fd_balance, auto_renewal_status, fd_status, open_date, maturity_date, fd_plan_id)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING fd_id`,
+        [principal_amount, auto_renewal_status, 'Active', openDate, maturityDate, fd_plan_id]
       );
+
+      const fdId = fdResult.rows[0].fd_id;
 
       // Update savings account balance (deduct principal amount)
       const newBalance = parseFloat(account.balance) - parseFloat(principal_amount);
@@ -1880,14 +1850,11 @@ app.post('/api/agent/fixed-deposits/create', async (req, res) => {
         [fdId, account_id]
       );
 
-      // Create withdrawal transaction for the principal amount
-      const transactionCount = await client.query('SELECT COUNT(*) as count FROM transaction');
-      const transactionId = `TXN${String(parseInt(transactionCount.rows[0].count) + 1).padStart(3, '0')}`;
-
+      // Create withdrawal transaction for the principal amount (auto-generated ID)
       await client.query(
-        `INSERT INTO transaction (transaction_id, transaction_type, amount, time, description, account_id, employee_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [transactionId, 'Withdrawal', principal_amount, new Date(), 
+        `INSERT INTO transaction (transaction_type, amount, time, description, account_id, employee_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        ['Withdrawal', principal_amount, new Date(), 
          `Fixed Deposit Creation - ${fdPlan.fd_options} Plan`, account_id, decoded.id]
       );
 
@@ -1895,7 +1862,7 @@ app.post('/api/agent/fixed-deposits/create', async (req, res) => {
       
       res.status(201).json({ 
         message: 'Fixed Deposit created successfully',
-        fd_account_number: fdId,
+        fd_id: fdId,
         maturity_date: maturityDate.toISOString().split('T')[0],
         new_savings_balance: newBalance
       });
@@ -2139,14 +2106,11 @@ app.post('/api/agent/fixed-deposits/deactivate', async (req, res) => {
         [fd.fd_balance, accountId]
       );
 
-      // ✅ Create transaction record for principal return
-      const transactionCount = await client.query('SELECT COUNT(*) as count FROM transaction');
-      const transactionId = `TXN${String(parseInt(transactionCount.rows[0].count) + 1).padStart(3, '0')}`;
-
+      // ✅ Create transaction record for principal return (auto-generated ID)
       await client.query(
-        `INSERT INTO transaction (transaction_id, transaction_type, amount, time, description, account_id, employee_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [transactionId, 'Deposit', fd.fd_balance, new Date(), 
+        `INSERT INTO transaction (transaction_type, amount, time, description, account_id, employee_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        ['Deposit', fd.fd_balance, new Date(), 
          `FD Deactivation - Principal Return (${fd_id})`, accountId, decoded.id]
       );
 
@@ -2434,17 +2398,16 @@ app.post('/api/agent/accounts/deactivate', async (req, res) => {
 
       // If account has balance, create withdrawal transaction
       if (withdrawalAmount > 0) {
-        // Generate transaction ID for withdrawal
-        const transactionCount = await client.query('SELECT COUNT(*) as count FROM transaction');
-        withdrawalTransactionId = `TXN${String(parseInt(transactionCount.rows[0].count) + 1).padStart(3, '0')}`;
-
-        // Create withdrawal transaction record
-        await client.query(
-          `INSERT INTO transaction (transaction_id, transaction_type, amount, time, description, account_id, employee_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [withdrawalTransactionId, 'Withdrawal', withdrawalAmount, new Date(), 
+        // Create withdrawal transaction record (auto-generated ID)
+        const withdrawalResult = await client.query(
+          `INSERT INTO transaction (transaction_type, amount, time, description, account_id, employee_id)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           RETURNING transaction_id`,
+          ['Withdrawal', withdrawalAmount, new Date(), 
            `Account Closure - Full Balance Withdrawal - ${reason || 'No reason provided'}`, account_id, decoded.id]
         );
+
+        withdrawalTransactionId = withdrawalResult.rows[0].transaction_id;
 
         // Update account balance to 0
         await client.query(
@@ -2460,13 +2423,10 @@ app.post('/api/agent/accounts/deactivate', async (req, res) => {
       );
 
       // Create additional transaction record for account deactivation (audit trail)
-      const deactivationTransactionCount = await client.query('SELECT COUNT(*) as count FROM transaction');
-      const deactivationTransactionId = `TXN${String(parseInt(deactivationTransactionCount.rows[0].count) + 1).padStart(3, '0')}`;
-
       await client.query(
-        `INSERT INTO transaction (transaction_id, transaction_type, amount, time, description, account_id, employee_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [deactivationTransactionId, 'Withdrawal', 0, new Date(), 
+        `INSERT INTO transaction (transaction_type, amount, time, description, account_id, employee_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        ['Withdrawal', 0, new Date(), 
          `Account Deactivated - ${reason || 'No reason provided'}`, account_id, decoded.id]
       );
 
@@ -2590,20 +2550,16 @@ const processMonthlySavingsInterest = async () => {
             [newBalance, account.account_id]
           );
 
-          // Generate transaction ID for interest credit
-          const transactionCount = await client.query('SELECT COUNT(*) as count FROM transaction');
-          const transactionId = `TXN${String(parseInt(transactionCount.rows[0].count) + 1).padStart(3, '0')}`;
-
-          // Create interest credit transaction
+          // Create interest credit transaction (auto-generated ID)
           const adminUser = await client.query(
             "SELECT employee_id FROM employee WHERE role = 'Admin' LIMIT 1"
           );
-          const employeeId = adminUser.rows.length > 0 ? adminUser.rows[0].employee_id : 'A001';
+          const employeeId = adminUser.rows.length > 0 ? adminUser.rows[0].employee_id : 1;
 
           await client.query(
-            `INSERT INTO transaction (transaction_id, transaction_type, amount, time, description, account_id, employee_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [transactionId, 'Interest', interestAmount, today,
+            `INSERT INTO transaction (transaction_type, amount, time, description, account_id, employee_id)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            ['Interest', interestAmount, today,
              `Monthly Savings Interest - ${account.plan_type} Plan`, account.account_id, employeeId]
           );
 
@@ -2808,7 +2764,7 @@ app.get('/api/admin/reports/agent-transactions', async (req, res) => {
         FROM employee e
         LEFT JOIN transaction t ON e.employee_id = t.employee_id
           AND DATE(t.time) BETWEEN $1 AND $2
-        WHERE e.role IN ('Agent', 'Manager')
+        WHERE e.role = 'Agent'
         GROUP BY e.employee_id, e.first_name, e.last_name
         ORDER BY total_transactions DESC
       `, [startDate, endDate]);
