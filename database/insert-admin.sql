@@ -20,7 +20,7 @@ INSERT INTO Employee (role, username, password, first_name, last_name, nic, gend
 VALUES (
     'Admin',                                                    -- role
     'admin',                                                   -- username
-    '$2a$10$zvyQ.o6q8sWdpVp92sWfiutXp1pDduIuwljIi1K2ogWxZ7ZoKxrE6',  -- hashed password
+    '$2a$10$z8XMweokob.ErL0iZxgw4esHMnaJjkT9UDiTEaYbqTc2ktF1dPfJ.',  -- hashed password
     'System',                                                  -- first_name
     'Administrator',                                           -- last_name
     '123456789V',                                             -- nic (sample)

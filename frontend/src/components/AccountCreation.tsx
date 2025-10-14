@@ -308,8 +308,12 @@ const AccountCreation: React.FC = () => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('token');
+      // Ensure numeric fields are numbers when sending to backend
       const submitData = {
-        ...formData,
+        customer_id: Number(formData.customer_id) || 0,
+        saving_plan_id: Number(formData.saving_plan_id) || 0,
+        initial_deposit: Number(formData.initial_deposit) || 0,
+        branch_id: Number(formData.branch_id) || 0,
         joint_holders: jointHolders.map(holder => holder.customer_id)
       };
 
@@ -345,9 +349,19 @@ const AccountCreation: React.FC = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    // Coerce numeric fields to numbers to avoid string vs number issues
+    let parsedValue: any = value;
+    if (name === 'saving_plan_id' || name === 'branch_id' || name === 'customer_id') {
+      // empty string -> 0, otherwise parse int
+      parsedValue = value === '' ? 0 : parseInt(value as string, 10);
+    } else if (name === 'initial_deposit') {
+      // allow decimals
+      parsedValue = value === '' ? 0 : parseFloat(value as string);
+    }
+
     setFormData({
       ...formData,
-      [name]: value
+      [name]: parsedValue
     });
 
     // Clear error when user starts typing
@@ -361,7 +375,7 @@ const AccountCreation: React.FC = () => {
 
     // Update selected plan when it changes
     if (name === 'saving_plan_id') {
-      const plan = savingPlans.find(p => p.saving_plan_id === parseInt(value));
+      const plan = savingPlans.find(p => p.saving_plan_id === (parsedValue as number));
       setSelectedPlan(plan || null);
       // Clear joint holders if plan is changed from Joint to something else
       if (plan?.plan_type !== 'Joint') {
@@ -628,28 +642,7 @@ const AccountCreation: React.FC = () => {
                 </div>
               </div>
 
-              <div className="form-group">
-                <label>Initial Deposit (LKR) *</label>
-                <input
-                  type="number"
-                  name="initial_deposit"
-                  value={formData.initial_deposit}
-                  onChange={handleInputChange}
-                  required
-                  min="0"
-                  step="0.01"
-                  placeholder="Enter initial deposit amount"
-                  className={errors.initial_deposit ? 'error' : ''}
-                />
-                {errors.initial_deposit && <span className="error-text">{errors.initial_deposit}</span>}
-                {selectedPlan && (
-                  <small className="form-help">
-                    Minimum deposit for {selectedPlan.plan_type} plan: LKR {selectedPlan.min_balance.toLocaleString()}
-                  </small>
-                )}
-              </div>
-
-              {/* Joint Account Holders Section */}
+              {/* Joint Account Holders Section - MOVED ABOVE INITIAL DEPOSIT */}
               {selectedPlan?.plan_type === 'Joint' && (
                 <div className="joint-holders-section">
                   <p>Joint Account Holders</p>
@@ -750,6 +743,28 @@ const AccountCreation: React.FC = () => {
                 </div>
               )}
 
+              {/* Initial Deposit - MOVED BELOW JOINT HOLDERS SECTION */}
+              <div className="form-group">
+                <label>Initial Deposit (LKR) *</label>
+                <input
+                  type="number"
+                  name="initial_deposit"
+                  value={formData.initial_deposit === 0 ? '' : formData.initial_deposit}
+                  onChange={handleInputChange}
+                  required
+                  min="0"
+                  step="0.01"
+                  placeholder="Enter initial deposit amount"
+                  className={errors.initial_deposit ? 'error' : ''}
+                />
+                {errors.initial_deposit && <span className="error-text">{errors.initial_deposit}</span>}
+                {selectedPlan && (
+                  <small className="form-help">
+                    Minimum deposit for {selectedPlan.plan_type} plan: LKR {selectedPlan.min_balance.toLocaleString()}
+                  </small>
+                )}
+              </div>
+
               {selectedPlan && formData.initial_deposit >= selectedPlan.min_balance && (
                 <div className="account-summary">
                   <h5>Account Summary</h5>
@@ -784,7 +799,6 @@ const AccountCreation: React.FC = () => {
                 </div>
               )}
             </div>
-
             <div className="form-actions">
               <button 
                 type="button" 

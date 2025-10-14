@@ -1344,12 +1344,22 @@ app.post('/api/agent/accounts/create', async (req, res) => {
 
     const { customer_id, saving_plan_id, initial_deposit, branch_id, joint_holders = [] } = req.body;
 
+    // Coerce numeric inputs to Numbers (defensive) and validate
+    const customerIdNum = Number(customer_id);
+    const savingPlanIdNum = Number(saving_plan_id);
+    const branchIdNum = Number(branch_id);
+    const initialDeposit = Number(initial_deposit);
+
     // Validation
-    if (!customer_id || !saving_plan_id || !branch_id || initial_deposit === undefined) {
+    if (!customerIdNum || !savingPlanIdNum || !branchIdNum || initial_deposit === undefined) {
       return res.status(400).json({ message: 'All required fields must be provided' });
     }
 
-    if (initial_deposit < 0) {
+    if (isNaN(initialDeposit)) {
+      return res.status(400).json({ message: 'Invalid initial deposit amount' });
+    }
+
+    if (initialDeposit < 0) {
       return res.status(400).json({ message: 'Initial deposit cannot be negative' });
     }
 
@@ -1359,7 +1369,7 @@ app.post('/api/agent/accounts/create', async (req, res) => {
       await client.query('BEGIN');
 
       // Get saving plan details for validation
-      const planResult = await client.query('SELECT * FROM savingplan WHERE saving_plan_id = $1', [saving_plan_id]);
+  const planResult = await client.query('SELECT * FROM savingplan WHERE saving_plan_id = $1', [savingPlanIdNum]);
       if (planResult.rows.length === 0) {
         await client.query('ROLLBACK');
         return res.status(400).json({ message: 'Invalid saving plan' });
@@ -1373,7 +1383,7 @@ app.post('/api/agent/accounts/create', async (req, res) => {
         return res.status(400).json({ message: 'Joint account requires at least one joint holder' });
       }
 
-      if (initial_deposit < savingPlan.min_balance) {
+      if (initialDeposit < savingPlan.min_balance) {
         await client.query('ROLLBACK');
         return res.status(400).json({ 
           message: `Minimum deposit for ${savingPlan.plan_type} plan is LKR ${savingPlan.min_balance}` 
@@ -1383,7 +1393,7 @@ app.post('/api/agent/accounts/create', async (req, res) => {
       // Verify primary customer exists and is at least 18 years old
       const customerResult = await client.query(
         'SELECT *, EXTRACT(YEAR FROM AGE(date_of_birth)) as age FROM customer WHERE customer_id = $1',
-        [customer_id]
+        [customerIdNum]
       );
       if (customerResult.rows.length === 0) {
         await client.query('ROLLBACK');
@@ -1430,7 +1440,7 @@ app.post('/api/agent/accounts/create', async (req, res) => {
         `INSERT INTO account (open_date, account_status, balance, saving_plan_id, branch_id)
         VALUES ($1, $2, $3, $4, $5)
         RETURNING account_id`,
-        [new Date().toISOString().split('T')[0], 'Active', 0, saving_plan_id, branch_id]  // Start with 0 balance
+        [new Date().toISOString().split('T')[0], 'Active', 0, savingPlanIdNum, branchIdNum]  // Start with 0 balance
       );
 
       const accountId = accountResult.rows[0].account_id;
@@ -1439,23 +1449,23 @@ app.post('/api/agent/accounts/create', async (req, res) => {
       await client.query(
         `INSERT INTO takes (customer_id, account_id)
          VALUES ($1, $2)`,
-        [customer_id, accountId]
+        [customerIdNum, accountId]
       );
 
       // Create takes relationships for joint holders (auto-generated ID)
       for (const jointCustomerId of joint_holders) {
         await client.query(
           `INSERT INTO takes (customer_id, account_id)
-           VALUES ($1, $2)`,
-          [jointCustomerId, accountId]
+             VALUES ($1, $2)`,
+            [jointCustomerId, accountId]
         );
       }
 
       // Create initial transaction if deposit > 0 using database function
-      if (initial_deposit > 0) {
+      if (initialDeposit > 0) {
         await client.query(
           'SELECT create_transaction_with_validation($1, $2, $3, $4, $5)',
-          ['Deposit', initial_deposit, 'Initial Deposit', accountId, decoded.id]
+          ['Deposit', initialDeposit, 'Initial Deposit', accountId, decoded.id]
         );
       }
 
