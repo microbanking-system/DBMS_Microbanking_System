@@ -1425,12 +1425,12 @@ app.post('/api/agent/accounts/create', async (req, res) => {
         return res.status(400).json({ message: 'Branch not found' });
       }
 
-      // Create account with 0 balance initially
+      // Create account record (auto-generated ID)
       const accountResult = await client.query(
         `INSERT INTO account (open_date, account_status, balance, saving_plan_id, branch_id)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING account_id`,
-        [new Date().toISOString().split('T')[0], 'Active', 0, saving_plan_id, branch_id]  // Start with 0 balance
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING account_id`,
+        [new Date().toISOString().split('T')[0], 'Active', initial_deposit, saving_plan_id, branch_id]
       );
 
       const accountId = accountResult.rows[0].account_id;
@@ -1451,11 +1451,12 @@ app.post('/api/agent/accounts/create', async (req, res) => {
         );
       }
 
-      // Create initial transaction if deposit > 0 using database function
+      // Create initial transaction if deposit > 0 (auto-generated ID)
       if (initial_deposit > 0) {
         await client.query(
-          'SELECT create_transaction_with_validation($1, $2, $3, $4, $5)',
-          ['Deposit', initial_deposit, 'Initial Deposit', accountId, decoded.id]
+          `INSERT INTO transaction (transaction_type, amount, time, description, account_id, employee_id)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          ['Deposit', initial_deposit, new Date(), 'Initial Deposit', accountId, decoded.id]
         );
       }
 
