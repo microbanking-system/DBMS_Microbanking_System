@@ -43,24 +43,22 @@ const processMonthlyFDInterest = async () => {
   try {
     await client.query('BEGIN');
 
-    const today = new Date();
-    const currentMonth = today.getMonth() + 1;
-    const currentYear = today.getFullYear();
-    
-    const periodStart = new Date(currentYear, today.getMonth() - 1, 1);
-    const periodEnd = new Date(currentYear, today.getMonth(), 0);
+  const today = new Date();
+  const currentMonth = today.getMonth() + 1;
+  const currentYear = today.getFullYear();
+  // Use previous calendar month as the accounting period, calculation uses fixed 30 days
+  const periodStart = new Date(currentYear, today.getMonth() - 1, 1);
+  const periodEnd = new Date(currentYear, today.getMonth(), 0);
     
     const startDate = periodStart.toISOString().split('T')[0];
     const endDate = periodEnd.toISOString().split('T')[0];
     const processDate = today.toISOString().split('T')[0];
 
-    // Check if already processed
+    // Check exact period to avoid duplicates (matches unique constraint)
     const periodCheck = await client.query(`
-      SELECT * FROM fd_interest_periods 
-      WHERE EXTRACT(MONTH FROM period_start) = $1 
-      AND EXTRACT(YEAR FROM period_start) = $2 
-      AND is_processed = true
-    `, [currentMonth, currentYear]);
+      SELECT 1 FROM fd_interest_periods 
+      WHERE period_start = $1 AND period_end = $2 AND is_processed = true
+    `, [startDate, endDate]);
 
     if (periodCheck.rows.length > 0) {
       console.log('✅ Interest for this month already processed');
@@ -119,14 +117,13 @@ const processMonthlyFDInterest = async () => {
     const maturedResult = await client.query('SELECT * FROM process_matured_fixed_deposits()');
     const maturedData = maturedResult.rows[0];
 
-    // Mark period as processed
-    if (creditedCount > 0) {
-      await client.query(
-        `INSERT INTO fd_interest_periods (period_start, period_end, is_processed, processed_at)
-         VALUES ($1, $2, true, $3)`,
-        [startDate, endDate, processDate]
-      );
-    }
+    // Mark period as processed (unique constraint prevents duplicates)
+    await client.query(
+      `INSERT INTO fd_interest_periods (period_start, period_end, is_processed, processed_at)
+       VALUES ($1, $2, true, $3)
+       ON CONFLICT (period_start, period_end) DO NOTHING`,
+      [startDate, endDate, processDate]
+    );
 
     await client.query('COMMIT');
     
@@ -164,24 +161,22 @@ const processMonthlySavingsInterest = async () => {
   try {
     await client.query('BEGIN');
 
-    const today = new Date();
-    const currentMonth = today.getMonth() + 1;
-    const currentYear = today.getFullYear();
-    
-    const periodStart = new Date(currentYear, today.getMonth() - 1, 1);
-    const periodEnd = new Date(currentYear, today.getMonth(), 0);
+  const today = new Date();
+  const currentMonth = today.getMonth() + 1;
+  const currentYear = today.getFullYear();
+  // Use previous calendar month as the accounting period, calculation uses fixed 30 days
+  const periodStart = new Date(currentYear, today.getMonth() - 1, 1);
+  const periodEnd = new Date(currentYear, today.getMonth(), 0);
     
     const startDate = periodStart.toISOString().split('T')[0];
     const endDate = periodEnd.toISOString().split('T')[0];
     const processDate = today.toISOString().split('T')[0];
 
-    // Check if already processed
+    // Check exact period to avoid duplicates (matches unique constraint)
     const periodCheck = await client.query(`
-      SELECT * FROM savings_interest_periods 
-      WHERE EXTRACT(MONTH FROM period_start) = $1 
-      AND EXTRACT(YEAR FROM period_start) = $2 
-      AND is_processed = true
-    `, [currentMonth, currentYear]);
+      SELECT 1 FROM savings_interest_periods 
+      WHERE period_start = $1 AND period_end = $2 AND is_processed = true
+    `, [startDate, endDate]);
 
     if (periodCheck.rows.length > 0) {
       console.log('✅ Savings interest for this month already processed');
@@ -235,14 +230,13 @@ const processMonthlySavingsInterest = async () => {
       }
     }
 
-    // Mark period as processed
-    if (creditedCount > 0) {
-      await client.query(
-        `INSERT INTO savings_interest_periods (period_start, period_end, is_processed, processed_at)
-         VALUES ($1, $2, true, $3)`,
-        [startDate, endDate, processDate]
-      );
-    }
+    // Mark period as processed (unique constraint prevents duplicates)
+    await client.query(
+      `INSERT INTO savings_interest_periods (period_start, period_end, is_processed, processed_at)
+       VALUES ($1, $2, true, $3)
+       ON CONFLICT (period_start, period_end) DO NOTHING`,
+      [startDate, endDate, processDate]
+    );
 
     await client.query('COMMIT');
     

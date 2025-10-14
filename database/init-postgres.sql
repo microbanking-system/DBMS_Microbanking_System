@@ -226,7 +226,8 @@ BEGIN
     END IF;
     
     -- Calculate new balance
-    IF p_transaction_type = 'Deposit' THEN
+    -- Treat Interest credits as Deposits
+    IF p_transaction_type = 'Deposit' OR p_transaction_type = 'Interest' THEN
         new_balance := current_balance + p_amount;
     ELSIF p_transaction_type = 'Withdrawal' THEN
         new_balance := current_balance - p_amount;
@@ -298,9 +299,9 @@ BEGIN
         fd.fd_id,
         fd.fd_balance as principal_amount,
         fp.interest as interest_rate,
-        ROUND((fd.fd_balance * (fp.interest/100) * 
-              EXTRACT(EPOCH FROM (p_period_end - p_period_start)) / 86400 / 365)::NUMERIC, 2) as interest_amount,
-        (p_period_end - p_period_start) as days_in_period,
+        -- Fixed 30-day monthly cycle for interest calculation
+        ROUND((fd.fd_balance * (fp.interest/100) * (30.0/365.0))::NUMERIC, 2) as interest_amount,
+        30 as days_in_period,
         a.account_id as linked_account_id
     FROM fixeddeposit fd
     JOIN fdplan fp ON fd.fd_plan_id = fp.fd_plan_id
@@ -336,14 +337,8 @@ BEGIN
           AND fd.maturity_date <= CURRENT_DATE
     LOOP
         BEGIN
-            -- Return principal to savings account
-            UPDATE account 
-            SET balance = balance + matured_record.principal_amount 
-            WHERE account_id = matured_record.linked_account_id;
-            
-            -- Update FD status or renew
+            -- If auto-renewal is True, only roll the dates forward (no principal returned)
             IF matured_record.auto_renewal_status = 'True' THEN
-                -- Auto-renew: update dates
                 UPDATE fixeddeposit 
                 SET 
                     open_date = CURRENT_DATE,
@@ -355,13 +350,23 @@ BEGIN
                         END
                 WHERE fd_id = matured_record.fd_id;
             ELSE
-                -- Close the FD
+                -- Return principal to savings account as a proper transaction
+                PERFORM create_transaction_with_validation(
+                    'Deposit', 
+                    matured_record.principal_amount, 
+                    'FD Maturity Principal Return', 
+                    matured_record.linked_account_id, 
+                    1 -- system/admin employee id
+                );
+
+                -- Close the FD and unlink from account
                 UPDATE fixeddeposit SET fd_status = 'Closed' WHERE fd_id = matured_record.fd_id;
                 UPDATE account SET fd_id = NULL WHERE fd_id = matured_record.fd_id;
+
+                v_total_principal := v_total_principal + matured_record.principal_amount;
             END IF;
-            
+
             v_processed_count := v_processed_count + 1;
-            v_total_principal := v_total_principal + matured_record.principal_amount;
             
         EXCEPTION
             WHEN others THEN
@@ -391,15 +396,14 @@ BEGIN
         a.account_id,
         a.balance,
         sp.interest as interest_rate,
-        ROUND((a.balance * (sp.interest/100) * 
-              EXTRACT(EPOCH FROM (p_period_end - p_period_start)) / 86400 / 365)::NUMERIC, 2) as interest_amount,
+        -- Fixed 30-day monthly cycle for interest calculation
+        ROUND((a.balance * (sp.interest/100) * (30.0/365.0))::NUMERIC, 2) as interest_amount,
         sp.plan_type::VARCHAR,
         sp.min_balance
     FROM account a
     JOIN savingplan sp ON a.saving_plan_id = sp.saving_plan_id
     WHERE a.account_status = 'Active'
-      AND a.balance >= sp.min_balance
-      AND a.fd_id IS NULL;
+      AND a.balance >= sp.min_balance;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -611,6 +615,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_fd_performance ON mv_fd_performance(fd_
 -- Constraints
 ALTER TABLE account ADD CONSTRAINT unique_fd_per_account UNIQUE (fd_id);
 CREATE INDEX IF NOT EXISTS idx_account_fd_id ON Account(fd_id);
+-- Prevent duplicate interest processing for the same period
+ALTER TABLE fd_interest_periods ADD CONSTRAINT unique_fd_interest_period UNIQUE (period_start, period_end);
+ALTER TABLE savings_interest_periods ADD CONSTRAINT unique_savings_interest_period UNIQUE (period_start, period_end);
 
 -- =============================================================================
 -- Refresh materialized views function

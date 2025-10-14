@@ -294,14 +294,16 @@ const TransactionProcessing: React.FC = () => {
 
   // FIXED: Calculate new balance safely
   const calculateNewBalance = (): number => {
-    const currentBalance = getSelectedAccount()?.balance || 0;
+    // Coerce balance to number in case API returns it as a string
+    const rawBalance = getSelectedAccount()?.balance ?? 0;
+    const currentBalance = typeof rawBalance === 'number' ? rawBalance : parseFloat(String(rawBalance));
     const amount = parseAmount(formData.amount);
-    
+
     if (formData.transaction_type === 'Deposit') {
+      // Ensure numeric arithmetic, not string concatenation
       return currentBalance + amount;
-    } else {
-      return currentBalance - amount;
     }
+    return currentBalance - amount;
   };
 
   // FIXED: Get maximum withdrawal amount considering minimum balance
