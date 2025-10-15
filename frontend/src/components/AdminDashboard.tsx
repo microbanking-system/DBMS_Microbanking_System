@@ -7,7 +7,7 @@ import Reports from './Reports';
 
 
 const AdminDashboard: React.FC = () => {
-  const [activeSection, setActiveSection] = useState('home');
+  const [activeSection, setActiveSection] = useState('users');
 
   return (
     <div className="admin-dashboard">

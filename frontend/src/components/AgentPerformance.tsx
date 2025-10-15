@@ -75,12 +75,6 @@ const AgentPerformance: React.FC = () => {
           <h4>My Performance</h4>
           <p className="section-subtitle">Track your performance metrics and recent activity</p>
         </div>
-        <button 
-          className="btn btn-secondary"
-          onClick={fetchPerformanceData}
-        >
-          Refresh
-        </button>
       </div>
 
       <div className="performance-grid">

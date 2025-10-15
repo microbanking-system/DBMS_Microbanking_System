@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
 import CustomerRegistration from './CustomerRegistration';
 import AccountCreation from './AccountCreation';
-import AgentOverview from './AgentOverview';
 import FixedDepositCreation from './FixedDepositCreation';
 import AccountDetailsView from './AccountDetailsView';
 import TransactionProcessing from './TransactionProcessing';
 import AgentPerformance from './AgentPerformance';
 
 const AgentDashboard: React.FC = () => {
-  const [activeSection, setActiveSection] = useState('overview');
+  const [activeSection, setActiveSection] = useState('performance');
 
   return (
     <div className="agent-dashboard">
@@ -18,10 +17,10 @@ const AgentDashboard: React.FC = () => {
         <ul>
           <li>
             <button 
-              className={activeSection === 'overview' ? 'active' : ''}
-              onClick={() => setActiveSection('overview')}
+              className={activeSection === 'performance' ? 'active' : ''}
+              onClick={() => setActiveSection('performance')}
             >
-              Overview
+              My Performance
             </button>
           </li>
           
@@ -65,20 +64,12 @@ const AgentDashboard: React.FC = () => {
               Process Transaction
             </button>
           </li>
-          {/* <li>
-            <button 
-              className={activeSection === 'performance' ? 'active' : ''}
-              onClick={() => setActiveSection('performance')}
-            >
-              My Performance
-            </button>
-          </li> */}
+          
           
         </ul>
       </nav>
 
       <div className="admin-content agent-content">
-        {activeSection === 'overview' && <AgentOverview />}
         {activeSection === 'register' && <CustomerRegistration />}
         {activeSection === 'account' && <AccountCreation />}
         {activeSection === 'fixed-deposit' && <FixedDepositCreation />}
