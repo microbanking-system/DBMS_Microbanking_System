@@ -2,7 +2,7 @@
 -- CREATE DATABASE microbanking;
 
 -- Connect to the database
---\c newdb;
+\c newdb;
 
 -- Create enum types
 CREATE TYPE gender_type AS ENUM ('Male', 'Female', 'Other');

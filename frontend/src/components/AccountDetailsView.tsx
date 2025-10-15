@@ -393,7 +393,7 @@ const AccountDetailsView: React.FC = () => {
               </div>
             ) : (
               <div className="no-selection">
-                <div className="no-selection-icon">👆</div>
+                {/* <div className="no-selection-icon">👆</div> */}
                 <h5>Select an account to view details</h5>
                 <p>Click on any account from the list to see detailed information, customer details, and transaction history.</p>
               </div>

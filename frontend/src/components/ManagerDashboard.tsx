@@ -10,34 +10,44 @@ const ManagerDashboard: React.FC = () => {
     <div className="manager-dashboard">
       <h2>Manager Dashboard</h2>
       
-      <div className="admin-nav">
-        <button 
-          className={activeSection === 'overview' ? 'active' : ''}
-          onClick={() => setActiveSection('overview')}
-        >
-          📊 Overview
-        </button>
-        <button 
-          className={activeSection === 'team' ? 'active' : ''}
-          onClick={() => setActiveSection('team')}
-        >
-          👥 Team Management
-        </button>
-        <button 
-          className={activeSection === 'transactions' ? 'active' : ''}
-          onClick={() => setActiveSection('transactions')}
-        >
-          💰 Transaction Summary
-        </button>
-        <button 
-          className={activeSection === 'customers' ? 'active' : ''}
-          onClick={() => setActiveSection('customers')}
-        >
-          🏦 Customer Accounts
-        </button>
-      </div>
+      <nav className="admin-nav manager-nav">
+        <ul>
+          <li>
+            <button 
+              className={activeSection === 'overview' ? 'active' : ''}
+              onClick={() => setActiveSection('overview')}
+            >
+              📊 Overview
+            </button>
+          </li>
+          <li>
+            <button 
+              className={activeSection === 'team' ? 'active' : ''}
+              onClick={() => setActiveSection('team')}
+            >
+              👥 Team Management
+            </button>
+          </li>
+          <li>
+            <button 
+              className={activeSection === 'transactions' ? 'active' : ''}
+              onClick={() => setActiveSection('transactions')}
+            >
+              💰 Transaction Summary
+            </button>
+          </li>
+          <li>
+            <button 
+              className={activeSection === 'customers' ? 'active' : ''}
+              onClick={() => setActiveSection('customers')}
+            >
+              🏦 Customer Accounts
+            </button>
+          </li>
+        </ul>
+      </nav>
 
-      <div className="admin-content">
+      <div className="admin-content manager-content">
         {activeSection === 'overview' && (
           <div className="dashboard-overview">
             <div className="dashboard-cards">

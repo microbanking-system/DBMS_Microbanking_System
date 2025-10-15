@@ -18,9 +18,12 @@ interface FormErrors {
 }
 
 const CustomerRegistration: React.FC = () => {
+  const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
-  const [successMessage, setSuccessMessage] = useState('');
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [customerId, setCustomerId] = useState('');
+  
   const [formData, setFormData] = useState<CustomerFormData>({
     first_name: '',
     last_name: '',
@@ -33,7 +36,13 @@ const CustomerRegistration: React.FC = () => {
     email: ''
   });
 
-  const validateForm = (): boolean => {
+  const steps = [
+    { number: 1, label: 'info 01' },
+    { number: 2, label: 'info 02' },
+    { number: 3, label: 'Done' }
+  ];
+
+  const validateStep1 = (): boolean => {
     const newErrors: FormErrors = {};
     
     if (!formData.first_name.trim()) {
@@ -65,6 +74,13 @@ const CustomerRegistration: React.FC = () => {
       }
     }
     
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const validateStep2 = (): boolean => {
+    const newErrors: FormErrors = {};
+    
     if (!formData.contact_no_1.trim()) {
       newErrors.contact_no_1 = 'Primary contact number is required';
     } else if (!/^[0-9+]{10,15}$/.test(formData.contact_no_1)) {
@@ -85,10 +101,26 @@ const CustomerRegistration: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateForm()) return;
-    
+  const handleNext = async () => {
+    if (currentStep === 1) {
+      if (validateStep1()) {
+        setCurrentStep(2);
+      }
+    } else if (currentStep === 2) {
+      if (validateStep2()) {
+        await handleSubmit();
+      }
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+      setErrors({});
+    }
+  };
+
+  const handleSubmit = async () => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('token');
@@ -98,19 +130,9 @@ const CustomerRegistration: React.FC = () => {
         }
       });
       
-      setSuccessMessage(`Customer "${formData.first_name} ${formData.last_name}" registered successfully! Customer ID: ${response.data.customer_id}`);
-      setFormData({
-        first_name: '',
-        last_name: '',
-        nic: '',
-        gender: 'Male',
-        date_of_birth: '',
-        contact_no_1: '',
-        contact_no_2: '',
-        address: '',
-        email: ''
-      });
-      setErrors({});
+      setCustomerId(response.data.customer_id);
+      setIsSubmitted(true);
+      setCurrentStep(3);
     } catch (error: any) {
       alert(error.response?.data?.message || 'Failed to register customer');
     } finally {
@@ -124,7 +146,6 @@ const CustomerRegistration: React.FC = () => {
       ...formData,
       [name]: value
     });
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => {
         const newErrors = { ...prev };
@@ -145,206 +166,261 @@ const CustomerRegistration: React.FC = () => {
     return age;
   };
 
+  const resetForm = () => {
+    setFormData({
+      first_name: '',
+      last_name: '',
+      nic: '',
+      gender: 'Male',
+      date_of_birth: '',
+      contact_no_1: '',
+      contact_no_2: '',
+      address: '',
+      email: ''
+    });
+    setErrors({});
+    setCurrentStep(1);
+    setIsSubmitted(false);
+    setCustomerId('');
+  };
+
+  // CheckIcon component
+  const CheckIcon = () => (
+    <svg className="step-check-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+    </svg>
+  );
+
   return (
-    <div className="customer-registration">
-      <div className="section-header">
-        <div>
-          <h4>Customer Registration</h4>
-          <p className="section-subtitle">Register new customers for banking services</p>
+    <div className="customer-registration-wizard">
+      <div className="wizard-container">
+        {/* Header */}
+        <div className="wizard-header">
+          <div className="wizard-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+          </div>
+          <h1>Create a new account</h1>
+          <p>Register new customers for banking services</p>
         </div>
-      </div>
 
-      {successMessage && (
-        <div className="success-message">
-          <span className="success-icon">✓</span>
-          {successMessage}
-          <button 
-            className="close-btn"
-            onClick={() => setSuccessMessage('')}
-          >
-            ×
-          </button>
+        {/* Stepper */}
+        <div className="stepper">
+          <div className="stepper-line-container">
+            {steps.map((step, index) => (
+              <React.Fragment key={step.number}>
+                <div className="step-item">
+                  <div className={`step-circle ${
+                    currentStep > step.number || (currentStep === 3 && step.number === 3) ? 'step-completed' :
+                    currentStep === step.number ? 'step-active' : 'step-inactive'
+                  }`}>
+                    {currentStep > step.number || (currentStep === 3 && step.number === 3) ? <CheckIcon /> : step.number}
+                  </div>
+                  <span className={`step-label ${
+                    currentStep >= step.number ? 'step-label-active' : 'step-label-inactive'
+                  }`}>
+                    {step.label}
+                  </span>
+                </div>
+                {index < steps.length - 1 && (
+                  <div className={`step-line ${
+                    currentStep > step.number ? 'step-line-completed' : 'step-line-incomplete'
+                  }`} />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
         </div>
-      )}
 
-      <div className="registration-form-container">
-        <form className="registration-form" onSubmit={handleSubmit}>
-          <div className="form-section">
-            <h4>Personal Information</h4>
-            <div className="form-row">
+        {/* Form Container */}
+        <div className="wizard-form-container">
+          {currentStep === 1 && (
+            <div className="form-step">
+              <h2 className="step-title">Personal Information</h2>
+              
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>First Name *</label>
+                  <input
+                    type="text"
+                    name="first_name"
+                    value={formData.first_name}
+                    onChange={handleInputChange}
+                    placeholder="Enter first name"
+                    className={errors.first_name ? 'input-error' : ''}
+                  />
+                  {errors.first_name && <p className="error-message">{errors.first_name}</p>}
+                </div>
+
+                <div className="form-group">
+                  <label>Last Name *</label>
+                  <input
+                    type="text"
+                    name="last_name"
+                    value={formData.last_name}
+                    onChange={handleInputChange}
+                    placeholder="Enter last name"
+                    className={errors.last_name ? 'input-error' : ''}
+                  />
+                  {errors.last_name && <p className="error-message">{errors.last_name}</p>}
+                </div>
+              </div>
+
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>NIC Number *</label>
+                  <input
+                    type="text"
+                    name="nic"
+                    value={formData.nic}
+                    onChange={handleInputChange}
+                    placeholder="e.g., 123456789V or 123456789012"
+                    className={errors.nic ? 'input-error' : ''}
+                  />
+                  {errors.nic && <p className="error-message">{errors.nic}</p>}
+                </div>
+
+                <div className="form-group">
+                  <label>Gender *</label>
+                  <select
+                    name="gender"
+                    value={formData.gender}
+                    onChange={handleInputChange}
+                  >
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
               <div className="form-group">
-                <label>First Name *</label>
+                <label>Date of Birth *</label>
+                <input
+                  type="date"
+                  name="date_of_birth"
+                  value={formData.date_of_birth}
+                  onChange={handleInputChange}
+                  className={errors.date_of_birth ? 'input-error' : ''}
+                />
+                {errors.date_of_birth && <p className="error-message">{errors.date_of_birth}</p>}
+                {formData.date_of_birth && !errors.date_of_birth && (
+                  <p className="help-text">Age: {calculateAge(formData.date_of_birth)} years</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {currentStep === 2 && (
+            <div className="form-step">
+              <h2 className="step-title">Contact Information</h2>
+              
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Primary Contact Number *</label>
+                  <input
+                    type="text"
+                    name="contact_no_1"
+                    value={formData.contact_no_1}
+                    onChange={handleInputChange}
+                    placeholder="e.g., +94112345678"
+                    className={errors.contact_no_1 ? 'input-error' : ''}
+                  />
+                  {errors.contact_no_1 && <p className="error-message">{errors.contact_no_1}</p>}
+                </div>
+
+                <div className="form-group">
+                  <label>Secondary Contact Number</label>
+                  <input
+                    type="text"
+                    name="contact_no_2"
+                    value={formData.contact_no_2}
+                    onChange={handleInputChange}
+                    placeholder="e.g., +94112345679"
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Email Address *</label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  placeholder="e.g., customer@email.com"
+                  className={errors.email ? 'input-error' : ''}
+                />
+                {errors.email && <p className="error-message">{errors.email}</p>}
+              </div>
+
+              <div className="form-group">
+                <label>Address *</label>
                 <input
                   type="text"
-                  name="first_name"
-                  value={formData.first_name}
+                  name="address"
+                  value={formData.address}
                   onChange={handleInputChange}
-                  required
-                  placeholder="Enter first name"
-                  className={errors.first_name ? 'error' : ''}
+                  placeholder="e.g., 123 Main Street, Colombo 01"
+                  className={errors.address ? 'input-error' : ''}
                 />
-                {errors.first_name && <span className="error-text">{errors.first_name}</span>}
-              </div>
-
-              <div className="form-group">
-                <label>Last Name *</label>
-                <input
-                  type="text"
-                  name="last_name"
-                  value={formData.last_name}
-                  onChange={handleInputChange}
-                  required
-                  placeholder="Enter last name"
-                  className={errors.last_name ? 'error' : ''}
-                />
-                {errors.last_name && <span className="error-text">{errors.last_name}</span>}
+                {errors.address && <p className="error-message">{errors.address}</p>}
               </div>
             </div>
+          )}
 
-            <div className="form-row">
-              <div className="form-group">
-                <label>NIC Number *</label>
-                <input
-                  type="text"
-                  name="nic"
-                  value={formData.nic}
-                  onChange={handleInputChange}
-                  required
-                  placeholder="e.g., 123456789V or 123456789012"
-                  className={errors.nic ? 'error' : ''}
-                />
-                {errors.nic && <span className="error-text">{errors.nic}</span>}
+          {currentStep === 3 && (
+            <div className="success-step">
+              <div className="success-icon-circle">
+                <CheckIcon />
               </div>
-
-              <div className="form-group">
-                <label>Gender *</label>
-                <select 
-                  name="gender" 
-                  value={formData.gender} 
-                  onChange={handleInputChange}
-                  required
-                >
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
+              <h2>Registration Complete!</h2>
+              <p className="success-message">
+                Customer "{formData.first_name} {formData.last_name}" has been registered successfully.
+              </p>
+              <div className="customer-id-box">
+                <p className="id-label">Customer ID</p>
+                <p className="id-value">{customerId}</p>
               </div>
+              <div></div>
+              <button onClick={resetForm} className="btn-register-another">
+                Register Another Customer
+              </button>
             </div>
+          )}
 
-            <div className="form-group">
-              <label>Date of Birth *</label>
-              <input
-                type="date"
-                name="date_of_birth"
-                value={formData.date_of_birth}
-                onChange={handleInputChange}
-                required
-                className={errors.date_of_birth ? 'error' : ''}
-              />
-              {errors.date_of_birth && <span className="error-text">{errors.date_of_birth}</span>}
-              {formData.date_of_birth && !errors.date_of_birth && (
-                <small className="form-help">
-                  Age: {calculateAge(formData.date_of_birth)} years
-                </small>
-              )}
+          {/* Action Buttons */}
+          {currentStep < 3 && (
+            <div className="wizard-actions">
+              <button
+                type="button"
+                onClick={handleBack}
+                disabled={currentStep === 1}
+                className="btn-back"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={handleNext}
+                disabled={isLoading}
+                className="btn-next"
+              >
+                {isLoading ? (
+                  <>
+                    <div className="loading-spinner"></div>
+                    Submitting...
+                  </>
+                ) : currentStep === 2 ? (
+                  'Submit'
+                ) : (
+                  'Next'
+                )}
+              </button>
             </div>
-          </div>
-
-          <div className="form-section">
-            <h4>Contact Information</h4>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Primary Contact Number *</label>
-                <input
-                  type="text"
-                  name="contact_no_1"
-                  value={formData.contact_no_1}
-                  onChange={handleInputChange}
-                  required
-                  placeholder="e.g., +94112345678"
-                  className={errors.contact_no_1 ? 'error' : ''}
-                />
-                {errors.contact_no_1 && <span className="error-text">{errors.contact_no_1}</span>}
-              </div>
-
-              <div className="form-group">
-                <label>Secondary Contact Number</label>
-                <input
-                  type="text"
-                  name="contact_no_2"
-                  value={formData.contact_no_2}
-                  onChange={handleInputChange}
-                  placeholder="e.g., +94112345679"
-                />
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label>Email Address *</label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                required
-                placeholder="e.g., customer@email.com"
-                className={errors.email ? 'error' : ''}
-              />
-              {errors.email && <span className="error-text">{errors.email}</span>}
-            </div>
-
-            <div className="form-group">
-              <label>Address *</label>
-              <input
-                type="text"
-                name="address"
-                value={formData.address}
-                onChange={handleInputChange}
-                required
-                placeholder="e.g., 123 Main Street, Colombo 01"
-                className={errors.address ? 'error' : ''}
-              />
-              {errors.address && <span className="error-text">{errors.address}</span>}
-            </div>
-          </div>
-
-          <div className="form-actions">
-            <button 
-              type="button" 
-              className="btn btn-secondary"
-              onClick={() => {
-                setFormData({
-                  first_name: '',
-                  last_name: '',
-                  nic: '',
-                  gender: 'Male',
-                  date_of_birth: '',
-                  contact_no_1: '',
-                  contact_no_2: '',
-                  address: '',
-                  email: ''
-                });
-                setErrors({});
-              }}
-            >
-              Clear Form
-            </button>
-            <button 
-              type="submit" 
-              className="btn btn-primary"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <span className="loading-spinner"></span>
-                  Registering Customer...
-                </>
-              ) : (
-                'Register Customer'
-              )}
-            </button>
-          </div>
-        </form>
+          )}
+        </div>
       </div>
     </div>
   );

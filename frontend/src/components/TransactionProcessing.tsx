@@ -340,16 +340,16 @@ const TransactionProcessing: React.FC = () => {
       {/* Tabs */}
       <div className="tabs">
         <button 
-          className={`tab ${activeTab === 'process' ? 'active' : ''}`}
+          className={`tab-btn ${activeTab === 'process' ? 'active' : ''}`}
           onClick={() => setActiveTab('process')}
         >
-          💰 Process Transaction
+          Process Transaction
         </button>
         <button 
-          className={`tab ${activeTab === 'history' ? 'active' : ''}`}
+          className={`tab-btn ${activeTab === 'history' ? 'active' : ''}`}
           onClick={() => setActiveTab('history')}
         >
-          📋 Transaction History
+          Transaction History
         </button>
       </div>
 
@@ -558,6 +558,7 @@ const TransactionProcessing: React.FC = () => {
             >
               {isLoadingHistory ? 'Refreshing...' : 'Refresh'}
             </button>
+            <div><br/></div>
           </div>
 
           {transactions.length === 0 ? (
