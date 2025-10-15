@@ -552,30 +552,30 @@ app.post('/api/agent/accounts/deactivate', async (req, res) => {
       let withdrawalAmount = parseFloat(account.balance);
       let withdrawalTransactionId = null;
 
-      // If account has balance, create withdrawal transaction using database function
+      // If account has balance, perform a direct closure withdrawal bypassing min balance validation
       if (withdrawalAmount > 0) {
-        const withdrawalResult = await client.query(
-          'SELECT create_transaction_with_validation($1, $2, $3, $4, $5) as transaction_id',
-          ['Withdrawal', withdrawalAmount, 
-           `Account Closure - Full Balance Withdrawal - ${reason || 'No reason provided'}`, 
-           account_id, decoded.id]
+        // 1) Set account balance to zero directly (allowed by trigger as long as non-negative)
+        await client.query(
+          'UPDATE account SET balance = $1 WHERE account_id = $2',
+          [0, account_id]
         );
 
-        withdrawalTransactionId = withdrawalResult.rows[0].transaction_id;
+        // 2) Record the withdrawal as a transaction (audit trigger validates basic constraints)
+        const txResult = await client.query(
+          `INSERT INTO transaction (transaction_type, amount, time, description, account_id, employee_id)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           RETURNING transaction_id`,
+          ['Withdrawal', withdrawalAmount, new Date(), 
+           `Account Closure - Full Balance Withdrawal - ${reason || 'No reason provided'}`,
+           account_id, decoded.id]
+        );
+        withdrawalTransactionId = txResult.rows[0].transaction_id;
       }
 
       // Update account status to Inactive
       await client.query(
         'UPDATE account SET account_status = $1 WHERE account_id = $2',
         ['Inactive', account_id]
-      );
-
-      // Create audit transaction
-      await client.query(
-        `INSERT INTO transaction (transaction_type, amount, time, description, account_id, employee_id)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        ['Withdrawal', 0, new Date(), 
-         `Account Deactivated - ${reason || 'No reason provided'}`, account_id, decoded.id]
       );
 
       await client.query('COMMIT');
