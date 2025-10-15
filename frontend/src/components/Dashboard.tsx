@@ -4,6 +4,7 @@ import AdminDashboard from './AdminDashboard';
 import ManagerDashboard from './ManagerDashboard';
 import AgentDashboard from './AgentDashboard';
 import Footer from './Footer';
+import bankLogo from '../assets/imgs/B_Trust_logo_white.png';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -57,6 +58,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   return (
     <div className="dashboard">
       <header className="dashboard-header">
+        <img src={bankLogo} alt='Bank Trust Logo'/>
         <h1>Microbanking System Dashboard</h1>
         <div className="user-info">
           <span>Welcome, {user.first_name} ({user.role})</span>

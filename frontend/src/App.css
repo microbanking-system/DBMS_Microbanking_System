@@ -199,6 +199,22 @@ button, input, select, textarea, label {
   background: linear-gradient(90deg, var(--accent-color), var(--success-color));
 }
 
+.dashboard-header img {
+  height: 50px;
+  width: auto;
+  margin-right: var(--spacing-md);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.dashboard-header h1 {
+  flex: 1;
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+}
+
 .dashboard-header .user-info {
   display: flex;
   align-items: center;
