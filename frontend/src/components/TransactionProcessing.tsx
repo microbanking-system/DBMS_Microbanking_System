@@ -420,7 +420,7 @@ const TransactionProcessing: React.FC = () => {
               {formData.account_id && (
                 <div className="account-info">
                   <div className="balance-display">
-                    <span className="balance-label">Current Balance:</span>
+                    <span className="balance-label">Current Balance: </span>
                     <span className="balance-amount">
                       {formatCurrency(getSelectedAccount()?.balance || 0)}
                     </span>
@@ -431,7 +431,7 @@ const TransactionProcessing: React.FC = () => {
                   {getSelectedAccount() && (
                     <div className="account-details">
                       <div className="detail-row">
-                        <span>Plan Type:</span>
+                        <span>Plan Type: </span>
                         <strong>{getSelectedAccount()?.plan_type || 'Unknown'}</strong>
                       </div>
                       <div className="detail-row">
