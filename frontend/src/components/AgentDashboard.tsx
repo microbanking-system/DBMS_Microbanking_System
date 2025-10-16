@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import CustomerRegistration from './CustomerRegistration';
 import AccountCreation from './AccountCreation';
 import FixedDepositCreation from './FixedDepositCreation';
@@ -7,7 +7,14 @@ import TransactionProcessing from './TransactionProcessing';
 import AgentPerformance from './AgentPerformance';
 
 const AgentDashboard: React.FC = () => {
-  const [activeSection, setActiveSection] = useState('performance');
+  const [activeSection, setActiveSection] = useState<string>(() => {
+    const saved = localStorage.getItem('agentDashboard.activeSection');
+    return saved || 'performance';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('agentDashboard.activeSection', activeSection);
+  }, [activeSection]);
 
   return (
     <div className="agent-dashboard">

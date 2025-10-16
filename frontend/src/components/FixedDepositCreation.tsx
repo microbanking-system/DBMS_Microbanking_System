@@ -64,11 +64,15 @@ const FixedDepositCreation: React.FC = () => {
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   
   // New state for FD management
-  const [activeTab, setActiveTab] = useState<'create' | 'manage'>('create');
+  const [activeTab, setActiveTab] = useState<'create' | 'manage'>(() => {
+    const saved = localStorage.getItem('fixedDepositCreation.activeTab') as 'create' | 'manage' | null;
+    return saved === 'manage' ? 'manage' : 'create';
+  });
   const [existingFDs, setExistingFDs] = useState<ExistingFD[]>([]);
   const [searchFdId, setSearchFdId] = useState('');
   const [searchResults, setSearchResults] = useState<ExistingFD[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   
   // Customer search state
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
@@ -95,10 +99,18 @@ const FixedDepositCreation: React.FC = () => {
     }
   }, [activeTab]);
 
-  // Sync search results with existing FDs
+  // Persist activeTab
   useEffect(() => {
-    setSearchResults(existingFDs);
-  }, [existingFDs]);
+    localStorage.setItem('fixedDepositCreation.activeTab', activeTab);
+  }, [activeTab]);
+
+  // Sync search results with existing FDs (keep data fresh, but UI only shows after search)
+  useEffect(() => {
+    if (hasSearched && !searchFdId.trim()) {
+      // If user cleared the term after a search, keep results empty
+      setSearchResults([]);
+    }
+  }, [existingFDs, hasSearched, searchFdId]);
 
   // Search for customers
   useEffect(() => {
@@ -155,8 +167,10 @@ const FixedDepositCreation: React.FC = () => {
   };
 
   const searchFD = async () => {
+    setHasSearched(true);
     if (!searchFdId.trim()) {
-      setSearchResults(existingFDs);
+      // empty search should not show all FDs
+      setSearchResults([]);
       return;
     }
 
@@ -725,7 +739,7 @@ const FixedDepositCreation: React.FC = () => {
                 <input
                   type="number"
                   name="principal_amount"
-                  value={formData.principal_amount}
+                  value={formData.principal_amount === 0 ? '' : formData.principal_amount}
                   onChange={handleInputChange}
                   required
                   min="0"
@@ -844,7 +858,8 @@ const FixedDepositCreation: React.FC = () => {
                 className="btn btn-secondary"
                 onClick={() => {
                   setSearchFdId('');
-                  setSearchResults(existingFDs);
+                  setSearchResults([]);
+                  setHasSearched(false);
                 }}
               >
                 Clear
@@ -852,70 +867,70 @@ const FixedDepositCreation: React.FC = () => {
             </div>
           </div>
 
-          <div className="fd-list">
-            <h5>Fixed Deposit Accounts ({searchResults.length})</h5>
-            
-            {searchResults.length === 0 ? (
-              <div className="no-data">
-                {searchFdId ? 
-                  `No fixed deposits found matching "${searchFdId}"` : 
-                  'No fixed deposit accounts found.'
-                }
-              </div>
-            ) : (
-              <div className="fd-grid">
-                {searchResults.map(fd => (
-                  <div key={fd.fd_id} className="fd-card">
-                    <div className="fd-header">
-                      <h6>FD Account: {fd.fd_id}</h6>
-                      {getStatusBadge(fd.fd_status)}
+          {/* Minimal results area: only show after a search */}
+          {hasSearched && (
+            <div className="fd-list">
+              {searchResults.length === 0 ? (
+                <div className="no-data">
+                  {searchFdId
+                    ? `No fixed deposits found matching "${searchFdId}"`
+                    : 'Enter a term above and click Search.'}
+                </div>
+              ) : (
+                <div className="fd-grid">
+                  {searchResults.map(fd => (
+                    <div key={fd.fd_id} className="fd-card">
+                      <div className="fd-header">
+                        <h6>FD Account: {fd.fd_id}</h6>
+                        {getStatusBadge(fd.fd_status)}
+                      </div>
+                      <div className="fd-details">
+                        <div className="fd-detail">
+                          <span>Linked Savings Account:</span>
+                          <strong>{fd.account_id}</strong>
+                        </div>
+                        <div className="fd-detail">
+                          <span>Customer:</span>
+                          <strong>{fd.customer_names}</strong>
+                        </div>
+                        <div className="fd-detail">
+                          <span>Principal Amount:</span>
+                          <strong>LKR {fd.fd_balance.toLocaleString()}</strong>
+                        </div>
+                        <div className="fd-detail">
+                          <span>Plan:</span>
+                          <strong>{fd.fd_options} ({fd.interest}%)</strong>
+                        </div>
+                        <div className="fd-detail">
+                          <span>Open Date:</span>
+                          <strong>{new Date(fd.open_date).toLocaleDateString()}</strong>
+                        </div>
+                        <div className="fd-detail">
+                          <span>Maturity Date:</span>
+                          <strong>{new Date(fd.maturity_date).toLocaleDateString()}</strong>
+                        </div>
+                        <div className="fd-detail">
+                          <span>Auto Renewal:</span>
+                          <strong>{fd.auto_renewal_status === 'True' ? 'Yes' : 'No'}</strong>
+                        </div>
+                      </div>
+                      <div className="fd-actions">
+                        {fd.fd_status === 'Active' && (
+                          <button
+                            type="button"
+                            className="btn btn-danger btn-sm"
+                            onClick={() => deactivateFD(fd.fd_id, fd.fd_balance, fd.account_id)}
+                          >
+                            Deactivate FD
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="fd-details">
-                      <div className="fd-detail">
-                        <span>Linked Savings Account:</span>
-                        <strong>{fd.account_id}</strong>
-                      </div>
-                      <div className="fd-detail">
-                        <span>Customer:</span>
-                        <strong>{fd.customer_names}</strong>
-                      </div>
-                      <div className="fd-detail">
-                        <span>Principal Amount:</span>
-                        <strong>LKR {fd.fd_balance.toLocaleString()}</strong>
-                      </div>
-                      <div className="fd-detail">
-                        <span>Plan:</span>
-                        <strong>{fd.fd_options} ({fd.interest}%)</strong>
-                      </div>
-                      <div className="fd-detail">
-                        <span>Open Date:</span>
-                        <strong>{new Date(fd.open_date).toLocaleDateString()}</strong>
-                      </div>
-                      <div className="fd-detail">
-                        <span>Maturity Date:</span>
-                        <strong>{new Date(fd.maturity_date).toLocaleDateString()}</strong>
-                      </div>
-                      <div className="fd-detail">
-                        <span>Auto Renewal:</span>
-                        <strong>{fd.auto_renewal_status === 'True' ? 'Yes' : 'No'}</strong>
-                      </div>
-                    </div>
-                    <div className="fd-actions">
-                      {fd.fd_status === 'Active' && (
-                        <button
-                          type="button"
-                          className="btn btn-danger btn-sm"
-                          onClick={() => deactivateFD(fd.fd_id, fd.fd_balance, fd.account_id)}
-                        >
-                          Deactivate FD
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

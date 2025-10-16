@@ -1250,6 +1250,134 @@ app.post('/api/agent/customers/register', async (req, res) => {
   }
 });
 
+// Get full customer details (with contact) by ID
+app.get('/api/agent/customers/:id', async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Authorization required' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
+    if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
+      return res.status(403).json({ message: 'Agent access required' });
+    }
+
+    const { id } = req.params;
+    const client = await pool.connect();
+    try {
+      const result = await client.query(`
+        SELECT 
+          c.customer_id,
+          c.first_name,
+          c.last_name,
+          c.gender,
+          c.nic,
+          c.date_of_birth,
+          ct.contact_id,
+          ct.contact_no_1,
+          ct.contact_no_2,
+          ct.address,
+          ct.email
+        FROM customer c
+        JOIN contact ct ON c.contact_id = ct.contact_id
+        WHERE c.customer_id = $1
+      `, [id]);
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'Customer not found' });
+      }
+
+      res.json({ customer: result.rows[0] });
+    } catch (error) {
+      console.error('Database error:', error);
+      res.status(500).json({ message: 'Database error' });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Authentication error:', error);
+    res.status(401).json({ message: 'Invalid or expired token' });
+  }
+});
+
+// Update customer details (and contact)
+app.put('/api/agent/customers/:id', async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Authorization required' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
+    if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
+      return res.status(403).json({ message: 'Agent access required' });
+    }
+
+    const { id } = req.params;
+    const { first_name, last_name, nic, gender, date_of_birth, contact_no_1, contact_no_2, address, email } = req.body;
+
+    // Basic validation
+    if (!first_name || !last_name || !nic || !gender || !date_of_birth || !contact_no_1 || !address || !email) {
+      return res.status(400).json({ message: 'All required fields must be provided' });
+    }
+
+    const dob = new Date(date_of_birth);
+    const today = new Date();
+    const age = today.getFullYear() - dob.getFullYear();
+    if (age < 18) {
+      return res.status(400).json({ message: 'Customer must be at least 18 years old' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Get existing to retrieve contact_id and current NIC
+      const existing = await client.query('SELECT customer_id, contact_id, nic FROM customer WHERE customer_id = $1', [id]);
+      if (existing.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ message: 'Customer not found' });
+      }
+      const { contact_id, nic: currentNic } = existing.rows[0];
+
+      // If NIC changed, check uniqueness
+      if (nic !== currentNic) {
+        const nicCheck = await client.query('SELECT 1 FROM customer WHERE nic = $1 AND customer_id <> $2', [nic, id]);
+        if (nicCheck.rows.length > 0) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ message: 'Another customer with this NIC already exists' });
+        }
+      }
+
+      // Update contact
+      await client.query(
+        `UPDATE contact SET contact_no_1 = $1, contact_no_2 = $2, address = $3, email = $4 WHERE contact_id = $5`,
+        [contact_no_1, contact_no_2 || null, address, email, contact_id]
+      );
+
+      // Update customer
+      await client.query(
+        `UPDATE customer SET first_name = $1, last_name = $2, gender = $3, nic = $4, date_of_birth = $5 WHERE customer_id = $6`,
+        [first_name, last_name, gender, nic, date_of_birth, id]
+      );
+
+      await client.query('COMMIT');
+
+      res.json({ message: 'Customer updated successfully' });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Database error:', error);
+      res.status(500).json({ message: 'Database error: ' + error.message });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Authentication error:', error);
+    res.status(401).json({ message: 'Invalid or expired token' });
+  }
+});
+
 
 app.get('/api/agent/customers', async (req, res) => {
   // Verify agent authorization

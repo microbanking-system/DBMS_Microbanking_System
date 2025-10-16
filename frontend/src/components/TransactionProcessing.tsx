@@ -40,7 +40,10 @@ interface SavingPlan {
 }
 
 const TransactionProcessing: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'process' | 'history'>('process');
+  const [activeTab, setActiveTab] = useState<'process' | 'history'>(() => {
+    const saved = localStorage.getItem('transactionProcessing.activeTab') as 'process' | 'history' | null;
+    return saved === 'history' ? 'history' : 'process';
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -65,6 +68,11 @@ const TransactionProcessing: React.FC = () => {
     fetchAccounts();
     fetchSavingPlans();
   }, []);
+
+  // Persist activeTab
+  useEffect(() => {
+    localStorage.setItem('transactionProcessing.activeTab', activeTab);
+  }, [activeTab]);
 
   const fetchRecentTransactions = async () => {
     setIsLoadingHistory(true);
@@ -112,12 +120,13 @@ const TransactionProcessing: React.FC = () => {
     }
   };
 
-  // NEW: Filter accounts based on search
-  const filteredAccounts = accounts.filter(account =>
-    account.account_id.toString().includes(accountSearch) ||
-    account.customer_names.toLowerCase().includes(accountSearch.toLowerCase()) ||
-    account.plan_type?.toLowerCase().includes(accountSearch.toLowerCase())
-  );
+  // NEW: Filter accounts based ONLY on numeric account ID; empty input yields no results
+  const numericSearch = accountSearch.replace(/\D/g, '');
+  const filteredAccounts = numericSearch.length === 0
+    ? []
+    : accounts
+        .filter(account => account.account_status?.toLowerCase() === 'active')
+        .filter(account => account.account_id.toString().includes(numericSearch));
 
   // NEW: Handle account selection
   const handleAccountSelect = (account: Account) => {
@@ -133,7 +142,8 @@ const TransactionProcessing: React.FC = () => {
   const handleAccountSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setAccountSearch(value);
-    setShowAccountDropdown(true);
+    const numericTerm = value.replace(/\D/g, '');
+    setShowAccountDropdown(numericTerm.length > 0);
     
     // If input is cleared, also clear the selected account
     if (!value.trim()) {
@@ -367,7 +377,7 @@ const TransactionProcessing: React.FC = () => {
                       value={accountSearch}
                       onChange={handleAccountSearchChange}
                       onFocus={() => setShowAccountDropdown(true)}
-                      placeholder="Search by Account ID, Customer Name, or Plan Type..."
+                      placeholder="Search by Account ID..."
                       className={errors.account_id ? 'error' : ''}
                       required
                     />
@@ -417,35 +427,33 @@ const TransactionProcessing: React.FC = () => {
               </div>
 
               {/* Account Balance Display */}
-              {formData.account_id && (
+              {getSelectedAccount() && (
                 <div className="account-info">
                   <div className="balance-display">
                     <span className="balance-label">Current Balance: </span>
                     <span className="balance-amount">
-                      {formatCurrency(getSelectedAccount()?.balance || 0)}
+                      {formatCurrency(getSelectedAccount()!.balance)}
                     </span>
                     <span className={`account-status ${getSelectedAccount()?.account_status.toLowerCase()}`}>
                       {getSelectedAccount()?.account_status}
                     </span>
                   </div>
-                  {getSelectedAccount() && (
-                    <div className="account-details">
-                      <div className="detail-row">
-                        <span>Plan Type: </span>
-                        <strong>{getSelectedAccount()?.plan_type || 'Unknown'}</strong>
-                      </div>
-                      <div className="detail-row">
-                        <span>Minimum Balance:</span>
-                        <strong>{formatCurrency(getAccountMinBalance(getSelectedAccount()!))}</strong>
-                      </div>
-                      {formData.transaction_type === 'Withdrawal' && (
-                        <div className="detail-row warning">
-                          <span>Maximum Withdrawal:</span>
-                          <strong>{formatCurrency(getMaxWithdrawal())}</strong>
-                        </div>
-                      )}
+                  <div className="account-details">
+                    <div className="detail-row">
+                      <span>Plan Type: </span>
+                      <strong>{getSelectedAccount()?.plan_type || 'Unknown'}</strong>
                     </div>
-                  )}
+                    <div className="detail-row">
+                      <span>Minimum Balance:</span>
+                      <strong>{formatCurrency(getAccountMinBalance(getSelectedAccount()!))}</strong>
+                    </div>
+                    {formData.transaction_type === 'Withdrawal' && (
+                      <div className="detail-row warning">
+                        <span>Maximum Withdrawal:</span>
+                        <strong>{formatCurrency(getMaxWithdrawal())}</strong>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 

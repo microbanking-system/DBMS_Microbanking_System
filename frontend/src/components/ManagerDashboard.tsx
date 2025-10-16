@@ -1,10 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import TeamManagement from './TeamManagement';
 import TransactionReports from './TransactionReports';
 import CustomerAccounts from './CustomerAccounts';
 
 const ManagerDashboard: React.FC = () => {
-  const [activeSection, setActiveSection] = useState('overview');
+  const [activeSection, setActiveSection] = useState<string>(() => {
+    const saved = localStorage.getItem('managerDashboard.activeSection');
+    return saved || 'overview';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('managerDashboard.activeSection', activeSection);
+  }, [activeSection]);
 
   return (
     <div className="manager-dashboard">

@@ -19,6 +19,7 @@ interface FormErrors {
 const LoginRegister: React.FC<LoginRegisterProps> = ({ onLoginSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [authError, setAuthError] = useState<string>('');
   const [loginData, setLoginData] = useState<LoginData>({
     username: '',
     password: ''
@@ -54,11 +55,26 @@ const LoginRegister: React.FC<LoginRegisterProps> = ({ onLoginSuccess }) => {
       const { token, user } = response.data;
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
+  // Reset persisted dashboard tabs on new login so defaults apply
+  localStorage.removeItem('adminDashboard.activeSection');
+  localStorage.removeItem('agentDashboard.activeSection');
+  localStorage.removeItem('managerDashboard.activeSection');
+  localStorage.removeItem('transactionProcessing.activeTab');
+  localStorage.removeItem('fixedDepositCreation.activeTab');
       
+      setAuthError('');
       onLoginSuccess();
       navigate('/dashboard');
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Login failed');
+      // Show inline auth error instead of popup
+      const message = error.response?.data?.message || 'Invalid username or password';
+      setAuthError(message);
+      // Optionally mark both fields as error for styling
+      setErrors(prev => ({
+        ...prev,
+        loginUsername: prev.loginUsername || '',
+        loginPassword: prev.loginPassword || ''
+      }));
     } finally {
       setIsLoading(false);
     }
@@ -79,6 +95,8 @@ const LoginRegister: React.FC<LoginRegisterProps> = ({ onLoginSuccess }) => {
         return newErrors;
       });
     }
+    // Clear auth error when user edits any field
+    if (authError) setAuthError('');
   };
 
   return (
@@ -120,7 +138,7 @@ const LoginRegister: React.FC<LoginRegisterProps> = ({ onLoginSuccess }) => {
                   onChange={handleLoginChange}
                   placeholder="Enter your username"
                   required
-                  className={errors.loginUsername ? 'error' : ''}
+                  className={errors.loginUsername || authError ? 'error' : ''}
                 />
               </div>
               {errors.loginUsername && <span className="error-text">{errors.loginUsername}</span>}
@@ -139,10 +157,12 @@ const LoginRegister: React.FC<LoginRegisterProps> = ({ onLoginSuccess }) => {
                   onChange={handleLoginChange}
                   placeholder="Enter your password"
                   required
-                  className={errors.loginPassword ? 'error' : ''}
+                  className={errors.loginPassword || authError ? 'error' : ''}
                 />
               </div>
               {errors.loginPassword && <span className="error-text">{errors.loginPassword}</span>}
+              {/* Reserve space to prevent layout shift when authError appears */}
+              <span className="error-text auth-error-slot">{authError || ' '}</span>
             </div>
 
             <button type="submit" className="btn-login-split" disabled={isLoading}>

@@ -73,6 +73,7 @@ const AccountCreation: React.FC = () => {
   const [searchAccountId, setSearchAccountId] = useState('');
   const [accountSearchResults, setAccountSearchResults] = useState<ExistingAccount[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   
   const [formData, setFormData] = useState<AccountFormData>({
     customer_id: 0,
@@ -172,18 +173,22 @@ const AccountCreation: React.FC = () => {
   };
 
   const searchAccount = () => {
+    setHasSearched(true);
+    
     if (!searchAccountId.trim()) {
-      setAccountSearchResults(existingAccounts);
+      // empty search should not show all accounts
+      setAccountSearchResults([]);
       return;
     }
 
     setIsSearching(true);
     
     // Simple client-side search
+    const term = searchAccountId.toLowerCase();
     const results = existingAccounts.filter(account =>
-      account.account_id.toString().includes(searchAccountId) ||
-      account.customer_names.toLowerCase().includes(searchAccountId.toLowerCase()) ||
-      account.plan_type.toLowerCase().includes(searchAccountId.toLowerCase())
+      account.account_id.toString().includes(term) ||
+      account.customer_names.toLowerCase().includes(term) ||
+      account.plan_type.toLowerCase().includes(term)
     );
     
     setAccountSearchResults(results);
@@ -871,7 +876,8 @@ const AccountCreation: React.FC = () => {
                 className="btn btn-secondary"
                 onClick={() => {
                   setSearchAccountId('');
-                  setAccountSearchResults(existingAccounts);
+                  setAccountSearchResults([]);
+                  setHasSearched(false);
                 }}
               >
                 Clear
@@ -879,116 +885,86 @@ const AccountCreation: React.FC = () => {
             </div>
           </div>
 
-          <div className="account-list">
-            <h6>Savings Accounts ({accountSearchResults.length})</h6>
-            
-            {accountSearchResults.length === 0 ? (
-              <div className="no-data">
-                {searchAccountId ? 
-                  `No accounts found matching "${searchAccountId}"` : 
-                  'No savings accounts found.'
-                }
-              </div>
-            ) : (
-              <div className="account-grid">
-                {accountSearchResults.map(account => (
-                  <div key={account.account_id} className="account-card">
-                    <div className="account-header">
-                      <h6>Account: {account.account_id}</h6>
-                      {getStatusBadge(account.account_status)}
-                    </div>
-                    <div className="account-details">
-                      <div className="account-detail-row">
-                        <div className="detail-label">Customer(s):</div>
-                        <div className="detail-value">
-                          <div className="customer-info">
-                            <strong>{account.customer_names}</strong>
-                            {account.customer_count > 1 && (
-                              <small className="joint-badge">Joint Account ({account.customer_count})</small>
-                            )}
-                          </div>
-                        </div>
+          {/* Minimal results area: only show after a search */}
+          {hasSearched && (
+            <div className="account-list">
+              {accountSearchResults.length === 0 ? (
+                <div className="no-data">
+                  {searchAccountId
+                    ? `No accounts found matching "${searchAccountId}"`
+                    : 'Enter a term above and click Search.'}
+                </div>
+              ) : (
+                <div className="account-grid">
+                  {accountSearchResults.map(account => (
+                    <div key={account.account_id} className="account-card">
+                      <div className="account-header">
+                        <h6>Account: {account.account_id}</h6>
+                        {getStatusBadge(account.account_status)}
                       </div>
-                      
-                      <div className="account-detail-row">
-                        <div className="detail-label">Plan Type:</div>
-                        <div className="detail-value">
-                          <strong>{account.plan_type}</strong>
-                        </div>
-                      </div>
-                      
-                      <div className="account-detail-row">
-                        <div className="detail-label">Current Balance:</div>
-                        <div className="detail-value">
-                          <strong className={account.balance > 0 ? 'text-success' : 'text-muted'}>
-                            LKR {account.balance.toLocaleString()}
-                          </strong>
-                        </div>
-                      </div>
-                      
-                      <div className="account-detail-row">
-                        <div className="detail-label">Minimum Balance:</div>
-                        <div className="detail-value">
-                          <strong>LKR {account.min_balance.toLocaleString()}</strong>
-                        </div>
-                      </div>
-                      
-                      <div className="account-detail-row">
-                        <div className="detail-label">Open Date:</div>
-                        <div className="detail-value">
-                          <strong>{new Date(account.open_date).toLocaleDateString()}</strong>
-                        </div>
-                      </div>
-                      
-                      <div className="account-detail-row">
-                        <div className="detail-label">Interest Rate:</div>
-                        <div className="detail-value">
-                          <strong>{account.interest}%</strong>
-                        </div>
-                      </div>
-                      
-                      {account.fd_id && (
+                      <div className="account-details">
                         <div className="account-detail-row">
-                          <div className="detail-label">Fixed Deposit:</div>
+                          <div className="detail-label">Customer(s):</div>
                           <div className="detail-value">
-                            <strong className="text-warning">{account.fd_id} (Active)</strong>
+                            <div className="customer-info">
+                              <strong>{account.customer_names}</strong>
+                              {account.customer_count > 1 && (
+                                <small className="joint-badge">Joint Account ({account.customer_count})</small>
+                              )}
+                            </div>
                           </div>
+                        </div>
+
+                        <div className="account-detail-row">
+                          <div className="detail-label">Plan Type:</div>
+                          <div className="detail-value">
+                            <strong>{account.plan_type}</strong>
+                          </div>
+                        </div>
+
+                        <div className="account-detail-row">
+                          <div className="detail-label">Current Balance:</div>
+                          <div className="detail-value">
+                            <strong className={account.balance > 0 ? 'text-success' : 'text-muted'}>
+                              LKR {account.balance.toLocaleString()}
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="account-actions">
+                        {account.account_status === 'Active' && (
+                          <button
+                            type="button"
+                            className="btn btn-danger btn-sm"
+                            onClick={() => deactivateAccount(
+                              account.account_id,
+                              account.balance,
+                              account.customer_names
+                            )}
+                            disabled={account.fd_id !== null}
+                          >
+                            {account.fd_id ? 'Has Active FD' : 'Deactivate Account'}
+                          </button>
+                        )}
+
+                        {account.account_status === 'Inactive' && (
+                          <span className="text-muted">Account Inactive</span>
+                        )}
+                      </div>
+
+                      {account.account_status === 'Active' && account.fd_id && (
+                        <div className="account-warning">
+                          <small className="text-warning">
+                            ⚠️ Deactivate FD first before closing account
+                          </small>
                         </div>
                       )}
                     </div>
-                    <div className="account-actions">
-                      {account.account_status === 'Active' && (
-                        <button
-                          type="button"
-                          className="btn btn-danger btn-sm"
-                          onClick={() => deactivateAccount(
-                            account.account_id, 
-                            account.balance, 
-                            account.customer_names
-                          )}
-                          disabled={account.fd_id !== null}
-                        >
-                          {account.fd_id ? 'Has Active FD' : 'Deactivate Account'}
-                        </button>
-                      )}
-                      
-                      {account.account_status === 'Inactive' && (
-                        <span className="text-muted">Account Inactive</span>
-                      )}
-                    </div>
-
-                    {account.account_status === 'Active' && account.fd_id && (
-                      <div className="account-warning">
-                        <small className="text-warning">
-                          ⚠️ Deactivate FD first before closing account
-                        </small>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

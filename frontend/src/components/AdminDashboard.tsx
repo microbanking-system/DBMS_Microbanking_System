@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import UserManagement from './UserManagement';
 import BranchManagement from './BranchManagement';
 import FDInterestManagement from './FDInterestManagement';
@@ -7,7 +7,14 @@ import Reports from './Reports';
 
 
 const AdminDashboard: React.FC = () => {
-  const [activeSection, setActiveSection] = useState('users');
+  const [activeSection, setActiveSection] = useState<string>(() => {
+    const saved = localStorage.getItem('adminDashboard.activeSection');
+    return saved || 'users';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('adminDashboard.activeSection', activeSection);
+  }, [activeSection]);
 
   return (
     <div className="admin-dashboard">
