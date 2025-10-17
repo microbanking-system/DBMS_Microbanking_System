@@ -90,6 +90,24 @@ const Reports: React.FC = () => {
     })}`;
   };
 
+  // Date helpers
+  const daysUntil = (dateStr?: string | null): number | null => {
+    if (!dateStr) return null;
+    const target = new Date(dateStr);
+    if (isNaN(target.getTime())) return null;
+    const today = new Date();
+    // normalize to date only
+    const t = new Date(target.getFullYear(), target.getMonth(), target.getDate()).getTime();
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    const diffDays = Math.ceil((t - d) / (1000 * 60 * 60 * 24));
+    return Math.max(0, diffDays);
+  };
+
+  const isToday = (dateStr?: string | null): boolean => {
+    const du = daysUntil(dateStr);
+    return du === 0;
+  };
+
   // Generic total getter
   const getTotal = (data: any[], field: string): number => {
     return data.reduce((sum, item) => {
@@ -712,6 +730,10 @@ const Reports: React.FC = () => {
                     <span>Total FD Value:</span>
                     <strong>{formatCurrency(totals.fds.totalValue)}</strong>
                   </div>
+                  <div className="summary-item">
+                    <span>Due Today (Interest):</span>
+                    <strong>{activeFDs.filter(fd => isToday(fd.next_interest_date)).length}</strong>
+                  </div>
                 </div>
                 <div className="table-container">
                   <table className="report-table">
@@ -724,7 +746,8 @@ const Reports: React.FC = () => {
                         <th>Interest Rate</th>
                         <th>Open Date</th>
                         <th>Maturity Date</th>
-                        <th>Next Interest Date</th>
+                        <th>Next Interest Date (30-day cycle)</th>
+                        <th>Days Remaining</th>
                         <th>Auto Renewal</th>
                       </tr>
                     </thead>
@@ -739,6 +762,14 @@ const Reports: React.FC = () => {
                           <td>{fd.open_date ? new Date(fd.open_date).toLocaleDateString() : ''}</td>
                           <td>{fd.maturity_date ? new Date(fd.maturity_date).toLocaleDateString() : ''}</td>
                           <td>{fd.next_interest_date ? new Date(fd.next_interest_date).toLocaleDateString() : ''}</td>
+                          <td>
+                            {(() => {
+                              const du = daysUntil(fd.next_interest_date);
+                              if (du === null) return '';
+                              if (du === 0) return <span className="badge badge-success">Due Today</span>;
+                              return `${du} day${du === 1 ? '' : 's'}`;
+                            })()}
+                          </td>
                           <td>
                             <span className={`badge ${String(fd.auto_renewal_status).toLowerCase() === 'true' ? 'badge-success' : 'badge-secondary'}`}>
                               {String(fd.auto_renewal_status)}

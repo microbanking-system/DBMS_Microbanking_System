@@ -16,9 +16,7 @@ interface SavingsInterestSummary {
 }
 
 const SavingsInterestManagement: React.FC = () => {
-  const [isProcessing, setIsProcessing] = useState(false);
   const [summary, setSummary] = useState<SavingsInterestSummary | null>(null);
-  const [lastRun, setLastRun] = useState<string | null>(null);
 
   const loadSummary = async () => {
     try {
@@ -29,31 +27,6 @@ const SavingsInterestManagement: React.FC = () => {
       setSummary(response.data);
     } catch (error) {
       console.error('Failed to load savings interest summary');
-    }
-  };
-
-  const processInterestNow = async () => {
-    if (!window.confirm('Process savings interest now? This will calculate and credit interest for all active savings accounts for the previous month.')) return;
-    
-    setIsProcessing(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post('/api/admin/savings-interest/process-now', {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      alert(response.data.message);
-      setLastRun(new Date().toLocaleString());
-      loadSummary(); // Refresh summary
-    } catch (error: any) {
-      if (error.response?.status === 400) {
-        // This is the "already processed" error
-        alert(`⚠️ ${error.response.data.message}\n\n${error.response.data.note}`);
-      } else {
-        alert(error.response?.data?.message || 'Processing failed');
-      }
-    } finally {
-      setIsProcessing(false);
     }
   };
 
@@ -68,8 +41,8 @@ const SavingsInterestManagement: React.FC = () => {
       <div className="auto-system-info">
         <div className="info-card success">
           <h5>🔄 Automatic System Status</h5>
-          <p><strong>Schedule:</strong> 1st of every month at 3:30 AM</p>
-          <p><strong>Action:</strong> Fully automatic calculation AND crediting</p>
+          <p><strong>Schedule:</strong> Daily at 3:30 AM (per-account 30-day cycles)</p>
+          <p><strong>Action:</strong> Fully automatic per-account calculation AND crediting</p>
           <p><strong>Status:</strong> <span className="status-active">ACTIVE</span></p>
         </div>
 
@@ -111,24 +84,7 @@ const SavingsInterestManagement: React.FC = () => {
         </div>
       </div>
 
-      <div className="manual-control-section">
-        <p>Manual Control (For Testing Only)</p>
-        <p className="warning-text">
-          ⚠️ Use only for testing or emergency processing. The system runs automatically every month.
-        </p>
-        
-        <button 
-          onClick={processInterestNow}
-          disabled={isProcessing}
-          className="btn btn-warning"
-        >
-          {isProcessing ? '🔄 Processing...' : '🚀 Process Interest Now'}
-        </button>
-        
-        {lastRun && (
-          <p className="last-run">Last manual run: {lastRun}</p>
-        )}
-      </div>
+      {/* Manual controls removed as processing is fully automatic on a daily schedule */}
     </div>
   );
 };

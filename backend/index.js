@@ -36,40 +36,20 @@ const cron = require('node-cron');
 // =============================================================================
 // OPTIMIZED: FD Interest Processing using Database Functions
 // =============================================================================
-const processMonthlyFDInterest = async () => {
-  console.log('🚀 Starting optimized monthly FD interest processing...');
+const processDailyFDInterest = async () => {
+  console.log('🚀 Starting daily FD interest processing (30-day per-account cycles)...');
   
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-  const today = new Date();
-  const currentMonth = today.getMonth() + 1;
-  const currentYear = today.getFullYear();
-  // Use previous calendar month as the accounting period, calculation uses fixed 30 days
-  const periodStart = new Date(currentYear, today.getMonth() - 1, 1);
-  const periodEnd = new Date(currentYear, today.getMonth(), 0);
-    
-    const startDate = periodStart.toISOString().split('T')[0];
-    const endDate = periodEnd.toISOString().split('T')[0];
+    const today = new Date();
     const processDate = today.toISOString().split('T')[0];
 
-    // Check exact period to avoid duplicates (matches unique constraint)
-    const periodCheck = await client.query(`
-      SELECT 1 FROM fd_interest_periods 
-      WHERE period_start = $1 AND period_end = $2 AND is_processed = true
-    `, [startDate, endDate]);
-
-    if (periodCheck.rows.length > 0) {
-      console.log('✅ Interest for this month already processed');
-      await client.query('ROLLBACK');
-      return { alreadyProcessed: true, message: 'Interest for this month already processed' };
-    }
-
-    // Use database function to calculate interest
+    // Use database function to get only FDs due for interest today
     const interestCalculations = await client.query(
-      `SELECT * FROM calculate_fd_interest_period($1, $2)`,
-      [startDate, endDate]
+      `SELECT * FROM calculate_fd_interest_due($1)`,
+      [processDate]
     );
 
     let creditedCount = 0;
@@ -117,17 +97,9 @@ const processMonthlyFDInterest = async () => {
     const maturedResult = await client.query('SELECT * FROM process_matured_fixed_deposits()');
     const maturedData = maturedResult.rows[0];
 
-    // Mark period as processed (unique constraint prevents duplicates)
-    await client.query(
-      `INSERT INTO fd_interest_periods (period_start, period_end, is_processed, processed_at)
-       VALUES ($1, $2, true, $3)
-       ON CONFLICT (period_start, period_end) DO NOTHING`,
-      [startDate, endDate, processDate]
-    );
-
     await client.query('COMMIT');
     
-    console.log(`✅ Optimized FD interest processing completed!`);
+    console.log(`✅ Daily FD interest processing completed!`);
     console.log(`📊 FDs Processed: ${creditedCount}`);
     console.log(`💰 Total Interest Credited: LKR ${totalInterest.toLocaleString()}`);
     console.log(`🏁 Matured FDs Processed: ${maturedData.processed_count}`);
@@ -139,7 +111,7 @@ const processMonthlyFDInterest = async () => {
       totalInterest: totalInterest,
       maturedProcessed: maturedData.processed_count,
       principalReturned: maturedData.total_principal_returned,
-      period: `${startDate} to ${endDate}`
+      period: processDate
     };
 
   } catch (error) {
@@ -154,40 +126,20 @@ const processMonthlyFDInterest = async () => {
 // =============================================================================
 // OPTIMIZED: Savings Interest Processing using Database Functions
 // =============================================================================
-const processMonthlySavingsInterest = async () => {
-  console.log('🚀 Starting optimized monthly savings interest processing...');
+const processDailySavingsInterest = async () => {
+  console.log('🚀 Starting daily savings interest processing (30-day per-account cycles)...');
   
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-  const today = new Date();
-  const currentMonth = today.getMonth() + 1;
-  const currentYear = today.getFullYear();
-  // Use previous calendar month as the accounting period, calculation uses fixed 30 days
-  const periodStart = new Date(currentYear, today.getMonth() - 1, 1);
-  const periodEnd = new Date(currentYear, today.getMonth(), 0);
-    
-    const startDate = periodStart.toISOString().split('T')[0];
-    const endDate = periodEnd.toISOString().split('T')[0];
+    const today = new Date();
     const processDate = today.toISOString().split('T')[0];
 
-    // Check exact period to avoid duplicates (matches unique constraint)
-    const periodCheck = await client.query(`
-      SELECT 1 FROM savings_interest_periods 
-      WHERE period_start = $1 AND period_end = $2 AND is_processed = true
-    `, [startDate, endDate]);
-
-    if (periodCheck.rows.length > 0) {
-      console.log('✅ Savings interest for this month already processed');
-      await client.query('ROLLBACK');
-      return { alreadyProcessed: true, message: 'Savings interest for this month already processed' };
-    }
-
-    // Use database function to calculate savings interest
+    // Use database function to get only savings accounts due for interest today
     const interestCalculations = await client.query(
-      `SELECT * FROM calculate_savings_interest_period($1, $2)`,
-      [startDate, endDate]
+      `SELECT * FROM calculate_savings_interest_due($1)`,
+      [processDate]
     );
 
     let creditedCount = 0;
@@ -230,26 +182,18 @@ const processMonthlySavingsInterest = async () => {
       }
     }
 
-    // Mark period as processed (unique constraint prevents duplicates)
-    await client.query(
-      `INSERT INTO savings_interest_periods (period_start, period_end, is_processed, processed_at)
-       VALUES ($1, $2, true, $3)
-       ON CONFLICT (period_start, period_end) DO NOTHING`,
-      [startDate, endDate, processDate]
-    );
-
     await client.query('COMMIT');
     
-    console.log(`✅ Optimized savings interest processing completed!`);
+    console.log(`✅ Daily savings interest processing completed!`);
     console.log(`📊 Accounts Processed: ${creditedCount}`);
     console.log(`💰 Total Interest Credited: LKR ${totalInterest.toLocaleString()}`);
-    console.log(`📅 Period: ${startDate} to ${endDate}`);
+    console.log(`📅 Date: ${processDate}`);
 
     return {
       success: true,
       processed: creditedCount,
       totalInterest: totalInterest,
-      period: `${startDate} to ${endDate}`
+      period: processDate
     };
 
   } catch (error) {
@@ -262,11 +206,11 @@ const processMonthlySavingsInterest = async () => {
 };
 
 // Schedule to run on 1st of every month
-cron.schedule('0 3 1 * *', processMonthlyFDInterest); // FD interest at 3:00 AM
-cron.schedule('30 3 1 * *', processMonthlySavingsInterest); // Savings interest at 3:30 AM
+cron.schedule('0 3 * * *', processDailyFDInterest); // FD interest daily at 3:00 AM
+cron.schedule('30 3 * * *', processDailySavingsInterest); // Savings interest daily at 3:30 AM
 
-console.log('✅ FD Interest Auto-Processor: Scheduled for 1st of every month at 3:00 AM');
-console.log('✅ Savings Interest Auto-Processor: Scheduled for 1st of every month at 3:30 AM');
+console.log('✅ FD Interest Auto-Processor: Scheduled daily at 3:00 AM');
+console.log('✅ Savings Interest Auto-Processor: Scheduled daily at 3:30 AM');
 
 // =============================================================================
 // OPTIMIZED: Transaction Processing using Database Functions
@@ -298,6 +242,8 @@ app.post('/api/agent/transactions/process', async (req, res) => {
 
     try {
       await client.query('BEGIN');
+      // Set actor id for downstream DB audit triggers (if used)
+      await client.query("SELECT set_config('app.actor_employee_id', $1, true)", [decoded.id.toString()]);
 
       // Check if account exists and is active
       const accountResult = await client.query(
@@ -307,7 +253,7 @@ app.post('/api/agent/transactions/process', async (req, res) => {
 
       if (accountResult.rows.length === 0) {
         await client.query('ROLLBACK');
-        return res.status(400).json({ message: 'Account not found or inactive' });
+  return res.status(400).json({ message: 'Account not found or closed' });
       }
 
       // OPTIMIZED: Use database function for transaction processing
@@ -340,6 +286,88 @@ app.post('/api/agent/transactions/process', async (req, res) => {
       }
       
       res.status(500).json({ message: 'Database error: ' + error.message });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Authentication error:', error);
+    res.status(401).json({ message: 'Invalid or expired token' });
+  }
+});
+
+// =============================================================================
+// Manager: Customer search within manager's branch (by name or NIC only)
+// =============================================================================
+app.get('/api/manager/customers/search', async (req, res) => {
+  // Verify manager authorization
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Authorization required' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
+    if (decoded.role !== 'Manager' && decoded.role !== 'Admin') {
+      return res.status(403).json({ message: 'Manager access required' });
+    }
+
+    const { query } = req.query;
+    if (!query || String(query).trim().length === 0) {
+      return res.status(400).json({ message: 'Search query is required' });
+    }
+
+    const client = await pool.connect();
+    try {
+      // Determine manager's branch
+      const managerResult = await client.query(
+        'SELECT branch_id FROM employee WHERE employee_id = $1',
+        [decoded.id]
+      );
+
+      if (managerResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Manager not found' });
+      }
+
+      const branchId = managerResult.rows[0].branch_id;
+
+      // Search customers linked to accounts in this branch by name or NIC
+      const q = `%${query}%`;
+      const result = await client.query(
+        `SELECT 
+            c.customer_id,
+            c.first_name,
+            c.last_name,
+            c.gender,
+            c.nic,
+            c.date_of_birth,
+            ct.contact_no_1,
+            ct.contact_no_2,
+            ct.email,
+            ct.address,
+            COUNT(DISTINCT a.account_id) AS accounts_count,
+            ARRAY_AGG(DISTINCT a.account_id) AS account_ids
+         FROM customer c
+         JOIN contact ct ON c.contact_id = ct.contact_id
+         JOIN takes t ON c.customer_id = t.customer_id
+         JOIN account a ON t.account_id = a.account_id
+         WHERE a.branch_id = $1
+           AND (
+             c.first_name ILIKE $2 OR 
+             c.last_name ILIKE $2 OR 
+             (c.first_name || ' ' || c.last_name) ILIKE $2 OR
+             (c.last_name || ' ' || c.first_name) ILIKE $2 OR
+             c.nic ILIKE $2
+           )
+         GROUP BY c.customer_id, ct.contact_no_1, ct.contact_no_2, ct.email, ct.address
+         ORDER BY c.last_name, c.first_name
+         LIMIT 50`,
+        [branchId, q]
+      );
+
+      res.json({ customers: result.rows });
+    } catch (error) {
+      console.error('Database error:', error);
+      res.status(500).json({ message: 'Database error' });
     } finally {
       client.release();
     }
@@ -406,7 +434,7 @@ app.post('/api/agent/fixed-deposits/create', async (req, res) => {
       );
       if (accountResult.rows.length === 0) {
         await client.query('ROLLBACK');
-        return res.status(400).json({ message: 'Account not found or inactive' });
+  return res.status(400).json({ message: 'Account not found or closed' });
       }
 
       const account = accountResult.rows[0];
@@ -554,6 +582,9 @@ app.post('/api/agent/accounts/deactivate', async (req, res) => {
 
       // If account has balance, perform a direct closure withdrawal bypassing min balance validation
       if (withdrawalAmount > 0) {
+        // Allow guarded direct balance update for this account in this transaction
+        await client.query("SELECT set_config('app.balance_update_allowed','true', true)");
+        await client.query("SELECT set_config('app.balance_update_account_id', $1, true)", [account_id.toString()]);
         // 1) Set account balance to zero directly (allowed by trigger as long as non-negative)
         await client.query(
           'UPDATE account SET balance = $1 WHERE account_id = $2',
@@ -572,10 +603,10 @@ app.post('/api/agent/accounts/deactivate', async (req, res) => {
         withdrawalTransactionId = txResult.rows[0].transaction_id;
       }
 
-      // Update account status to Inactive
+      // Update account to permanently closed
       await client.query(
-        'UPDATE account SET account_status = $1 WHERE account_id = $2',
-        ['Inactive', account_id]
+        'UPDATE account SET account_status = $1, closed_at = $2 WHERE account_id = $3',
+        ['Closed', new Date(), account_id]
       );
 
       await client.query('COMMIT');
@@ -584,7 +615,7 @@ app.post('/api/agent/accounts/deactivate', async (req, res) => {
         message: 'Account deactivated successfully',
         account_id: account_id,
         previous_status: 'Active',
-        new_status: 'Inactive',
+  new_status: 'Closed',
         previous_balance: withdrawalAmount,
         final_balance: 0
       };
@@ -614,89 +645,6 @@ app.post('/api/agent/accounts/deactivate', async (req, res) => {
 // =============================================================================
 // Manual triggers for interest processing (using optimized versions)
 // =============================================================================
-app.post('/api/admin/fd-interest/process-now', async (req, res) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) {
-    return res.status(401).json({ message: 'Authorization required' });
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
-    if (decoded.role !== 'Admin') {
-      return res.status(403).json({ message: 'Admin access required' });
-    }
-
-    console.log('🔄 Manual FD interest processing triggered by admin');
-    const result = await processMonthlyFDInterest();
-    
-    if (result.alreadyProcessed) {
-      return res.status(400).json({ 
-        message: 'FD interest for this month has already been processed'
-      });
-    }
-    
-    if (result.success) {
-      res.json({ 
-        message: 'FD interest processing completed successfully',
-        processed_count: result.processed,
-        total_interest: result.totalInterest,
-        matured_processed: result.maturedProcessed,
-        principal_returned: result.principalReturned,
-        period: result.period
-      });
-    } else {
-      res.status(500).json({ 
-        message: 'FD interest processing failed',
-        error: result.error 
-      });
-    }
-
-  } catch (error) {
-    console.error('Authentication error:', error);
-    res.status(401).json({ message: 'Invalid or expired token' });
-  }
-});
-
-app.post('/api/admin/savings-interest/process-now', async (req, res) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) {
-    return res.status(401).json({ message: 'Authorization required' });
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
-    if (decoded.role !== 'Admin') {
-      return res.status(403).json({ message: 'Admin access required' });
-    }
-
-    console.log('🔄 Manual savings interest processing triggered by admin');
-    const result = await processMonthlySavingsInterest();
-    
-    if (result.alreadyProcessed) {
-      return res.status(400).json({ 
-        message: 'Savings interest for this month has already been processed'
-      });
-    }
-    
-    if (result.success) {
-      res.json({ 
-        message: 'Savings interest processing completed successfully',
-        processed_count: result.processed,
-        total_interest: result.totalInterest,
-        period: result.period
-      });
-    } else {
-      res.status(500).json({ 
-        message: 'Savings interest processing failed',
-        error: result.error 
-      });
-    }
-
-  } catch (error) {
-    console.error('Authentication error:', error);
-    res.status(401).json({ message: 'Invalid or expired token' });
-  }
-});
 
 // =============================================================================
 // Refresh Materialized Views Endpoint
@@ -772,6 +720,20 @@ app.post('/api/admin/register', async (req, res) => {
     // Contact validation
     if (!contact_no_1 || !address || !email) {
       return res.status(400).json({ message: 'All contact fields are required' });
+    }
+
+    // Enforce 18+ for employee roles (Admin/Manager/Agent)
+    try {
+      const dob = new Date(date_of_birth);
+      const today = new Date();
+      let age = today.getFullYear() - dob.getFullYear();
+      const m = today.getMonth() - dob.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+      if (age < 18) {
+        return res.status(400).json({ message: 'Employee must be at least 18 years old' });
+      }
+    } catch (e) {
+      return res.status(400).json({ message: 'Invalid date_of_birth' });
     }
 
     const client = await pool.connect();
@@ -1191,13 +1153,7 @@ app.post('/api/agent/customers/register', async (req, res) => {
       return res.status(400).json({ message: 'All required fields must be provided' });
     }
 
-    // Age validation
-    const dob = new Date(date_of_birth);
-    const today = new Date();
-    const age = today.getFullYear() - dob.getFullYear();
-    if (age < 18) {
-      return res.status(400).json({ message: 'Customer must be at least 18 years old' });
-    }
+    // Age validation removed: allow registering customers under 18
 
     const client = await pool.connect();
 
@@ -1379,6 +1335,70 @@ app.put('/api/agent/customers/:id', async (req, res) => {
 });
 
 
+// Update customer contact details only
+app.put('/api/agent/customers/:id/contact', async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Authorization required' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
+    if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
+      return res.status(403).json({ message: 'Agent access required' });
+    }
+
+    const { id } = req.params;
+    const { contact_no_1, contact_no_2, address, email } = req.body;
+
+    // Validate contact fields only
+    if (!contact_no_1 || !address || !email) {
+      return res.status(400).json({ message: 'contact_no_1, address and email are required' });
+    }
+    if (!/^[0-9+]{10,15}$/.test(String(contact_no_1))) {
+      return res.status(400).json({ message: 'Invalid primary contact number' });
+    }
+    if (contact_no_2 && !/^[0-9+]{10,15}$/.test(String(contact_no_2))) {
+      return res.status(400).json({ message: 'Invalid secondary contact number' });
+    }
+    if (!/\S+@\S+\.\S+/.test(String(email))) {
+      return res.status(400).json({ message: 'Invalid email address' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Retrieve contact_id for the customer
+      const existing = await client.query('SELECT contact_id FROM customer WHERE customer_id = $1', [id]);
+      if (existing.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ message: 'Customer not found' });
+      }
+      const { contact_id } = existing.rows[0];
+
+      // Update only contact information
+      await client.query(
+        `UPDATE contact SET contact_no_1 = $1, contact_no_2 = $2, address = $3, email = $4 WHERE contact_id = $5`,
+        [contact_no_1, contact_no_2 || null, address, email, contact_id]
+      );
+
+      await client.query('COMMIT');
+      res.json({ message: 'Contact details updated successfully' });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Database error:', error);
+      res.status(500).json({ message: 'Database error: ' + error.message });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Authentication error:', error);
+    res.status(401).json({ message: 'Invalid or expired token' });
+  }
+});
+
+
 app.get('/api/agent/customers', async (req, res) => {
   // Verify agent authorization
   const token = req.headers.authorization?.split(' ')[1];
@@ -1512,7 +1532,7 @@ app.post('/api/agent/accounts/create', async (req, res) => {
         });
       }
 
-      // Verify primary customer exists and is at least 18 years old
+      // Verify primary customer exists and meets plan-specific age requirement
       const customerResult = await client.query(
         'SELECT *, EXTRACT(YEAR FROM AGE(date_of_birth)) as age FROM customer WHERE customer_id = $1',
         [customerIdNum]
@@ -1523,9 +1543,17 @@ app.post('/api/agent/accounts/create', async (req, res) => {
       }
 
       const primaryCustomer = customerResult.rows[0];
-      if (parseInt(primaryCustomer.age) < 18) {
+      const planType = savingPlan.plan_type;
+      let requiredAge = 18;
+      if (planType === 'Senior') requiredAge = 60;
+      else if (planType === 'Joint') requiredAge = 18;
+  else if (planType === 'Children') requiredAge = 0;
+  else if (planType === 'Teen') requiredAge = 12;
+      else if (planType === 'Adult') requiredAge = 18;
+
+      if (parseInt(primaryCustomer.age) < requiredAge) {
         await client.query('ROLLBACK');
-        return res.status(400).json({ message: 'Primary account holder must be at least 18 years old' });
+        return res.status(400).json({ message: `${planType} account requires account holder to be at least ${requiredAge} years old` });
       }
 
       // Verify joint holders exist and are at least 18 years old
@@ -2059,7 +2087,7 @@ app.get('/api/manager/accounts', async (req, res) => {
       const summary = {
         total_accounts: accountsResult.rows.length,
         active_accounts: activeAccounts.length,
-        inactive_accounts: accountsResult.rows.length - activeAccounts.length,
+        closed_accounts: accountsResult.rows.length - activeAccounts.length,
         total_balance: totalBalance,
         average_balance: activeAccounts.length > 0 ? totalBalance / activeAccounts.length : 0
       };
@@ -2184,7 +2212,8 @@ app.get('/api/agent/fixed-deposits', async (req, res) => {
           fp.fd_options,
           fp.interest,
           a.account_id,
-          STRING_AGG(DISTINCT c.first_name || ' ' || c.last_name, ', ') as customer_names
+          STRING_AGG(DISTINCT c.first_name || ' ' || c.last_name, ', ') as customer_names,
+          STRING_AGG(DISTINCT c.nic, ',') as customer_nics
         FROM fixeddeposit fd
         JOIN fdplan fp ON fd.fd_plan_id = fp.fd_plan_id
         JOIN account a ON fd.fd_id = a.fd_id
@@ -2241,19 +2270,16 @@ app.get('/api/agent/fixed-deposits/search', async (req, res) => {
           fp.fd_options,
           fp.interest,
           a.account_id,
-          STRING_AGG(DISTINCT c.first_name || ' ' || c.last_name, ', ') as customer_names
+          STRING_AGG(DISTINCT c.first_name || ' ' || c.last_name, ', ') as customer_names,
+          STRING_AGG(DISTINCT c.nic, ',') as customer_nics
         FROM fixeddeposit fd
         JOIN fdplan fp ON fd.fd_plan_id = fp.fd_plan_id
         JOIN account a ON fd.fd_id = a.fd_id
         JOIN takes t ON a.account_id = t.account_id
         JOIN customer c ON t.customer_id = c.customer_id
         WHERE 
-          fd.fd_id ILIKE $1 OR 
-          a.account_id ILIKE $1 OR
-          c.first_name ILIKE $1 OR 
-          c.last_name ILIKE $1 OR
-          (c.first_name || ' ' || c.last_name) ILIKE $1 OR
-          (c.last_name || ' ' || c.first_name) ILIKE $1
+          CAST(fd.fd_id AS TEXT) ILIKE $1 OR 
+          c.nic ILIKE $1
         GROUP BY fd.fd_id, fd.fd_balance, fd.fd_status, fd.open_date, fd.maturity_date, 
                  fd.auto_renewal_status, fp.fd_options, fp.interest, a.account_id
         ORDER BY fd.open_date DESC
@@ -2323,17 +2349,10 @@ app.post('/api/agent/fixed-deposits/deactivate', async (req, res) => {
 
       const accountId = accountResult.rows[0].account_id;
 
-      // ✅ CRITICAL FIX: Return principal amount to savings account
+      // ✅ Return principal amount via validated transaction (single source of truth)
       await client.query(
-        'UPDATE account SET balance = balance + $1 WHERE account_id = $2',
-        [fd.fd_balance, accountId]
-      );
-
-      // ✅ Create transaction record for principal return (auto-generated ID)
-      await client.query(
-        `INSERT INTO transaction (transaction_type, amount, time, description, account_id, employee_id)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        ['Deposit', fd.fd_balance, new Date(), 
+        'SELECT create_transaction_with_validation($1, $2, $3, $4, $5)',
+        ['Deposit', fd.fd_balance, 
          `FD Deactivation - Principal Return (${fd_id})`, accountId, decoded.id]
       );
 
@@ -2400,6 +2419,7 @@ app.get('/api/agent/all-accounts', async (req, res) => {
           sp.interest,
           sp.min_balance,
           STRING_AGG(DISTINCT c.first_name || ' ' || c.last_name, ', ') as customer_names,
+          STRING_AGG(DISTINCT c.nic, ',') as customer_nics,
           COUNT(DISTINCT t.customer_id) as customer_count
         FROM account a
         JOIN takes t ON a.account_id = t.account_id
@@ -2565,6 +2585,68 @@ app.get('/api/agent/accounts/search/:searchTerm', async (req, res) => {
   }
 });
 
+// Change account saving plan (Agent/Admin)
+app.post('/api/agent/accounts/change-plan', async (req, res) => {
+  // Verify agent/admin authorization
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Authorization required' });
+  }
+
+  const { account_id, new_saving_plan_id, reason, new_nic } = req.body || {};
+
+  if (!account_id || !new_saving_plan_id || typeof reason !== 'string' || reason.trim().length === 0) {
+    return res.status(400).json({ message: 'account_id, new_saving_plan_id and non-empty reason are required' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
+    if (decoded.role !== 'Agent' && decoded.role !== 'Admin') {
+      return res.status(403).json({ message: 'Agent access required' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Set actor for auditing context (used by other triggers/logs)
+      await client.query("SELECT set_config('app.actor_employee_id', $1, true)", [decoded.id.toString()]);
+
+      // Perform plan change via DB function (handles all validation and audit)
+      await client.query('SELECT change_account_saving_plan($1, $2, $3, $4, $5)', [
+        Number(account_id),
+        Number(new_saving_plan_id),
+        Number(decoded.id),
+        reason,
+        new_nic ?? null
+      ]);
+
+      // Return updated plan info for convenience
+      const planInfo = await client.query(
+        'SELECT saving_plan_id, plan_type, interest, min_balance FROM savingplan WHERE saving_plan_id = $1',
+        [Number(new_saving_plan_id)]
+      );
+
+      await client.query('COMMIT');
+
+      res.json({
+        message: 'Plan changed successfully',
+        new_plan: planInfo.rows[0]
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Change plan error:', error);
+      // Most validation errors are thrown as exceptions by the DB function
+      return res.status(400).json({ message: error.message || 'Failed to change plan' });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Authentication error:', error);
+    res.status(401).json({ message: 'Invalid or expired token' });
+  }
+});
+
 
 // Interest summary endpoints
 // Get FD interest summary
@@ -2598,12 +2680,16 @@ app.get('/api/admin/fd-interest/summary', async (req, res) => {
         WHERE fd_status = 'Active'
       `);
 
-      // Recent interest periods
+      // Recent processing dates (last 5 days when interest was credited)
       const recentPeriods = await client.query(`
-        SELECT period_start, period_end, processed_at
-        FROM fd_interest_periods 
-        WHERE is_processed = true
-        ORDER BY processed_at DESC
+        SELECT 
+          credited_at::date AS period_start,
+          credited_at::date AS period_end,
+          MAX(credited_at) AS processed_at
+        FROM fd_interest_calculations 
+        WHERE status = 'credited'
+        GROUP BY credited_at::date
+        ORDER BY credited_at::date DESC
         LIMIT 5
       `);
 
@@ -2614,7 +2700,7 @@ app.get('/api/admin/fd-interest/summary', async (req, res) => {
           total_value: parseFloat(activeFDs.rows[0].total_value)
         },
         recent_periods: recentPeriods.rows,
-        next_scheduled_run: '1st of next month at 3:00 AM'
+        next_scheduled_run: 'Daily at 3:00 AM'
       });
     } catch (error) {
       console.error('Database error:', error);
@@ -2665,12 +2751,16 @@ app.get('/api/admin/savings-interest/summary', async (req, res) => {
         )
       `);
 
-      // Recent interest periods
+      // Recent processing dates (last 5 days when interest was credited)
       const recentPeriods = await client.query(`
-        SELECT period_start, period_end, processed_at
-        FROM savings_interest_periods 
-        WHERE is_processed = true
-        ORDER BY processed_at DESC
+        SELECT 
+          credited_at::date AS period_start,
+          credited_at::date AS period_end,
+          MAX(credited_at) AS processed_at
+        FROM savings_interest_calculations 
+        WHERE status = 'credited'
+        GROUP BY credited_at::date
+        ORDER BY credited_at::date DESC
         LIMIT 5
       `);
 
@@ -2681,7 +2771,7 @@ app.get('/api/admin/savings-interest/summary', async (req, res) => {
           total_balance: parseFloat(activeSavingsAccounts.rows[0].total_balance)
         },
         recent_periods: recentPeriods.rows,
-        next_scheduled_run: '1st of next month at 3:30 AM'
+        next_scheduled_run: 'Daily at 3:30 AM'
       });
     } catch (error) {
       console.error('Database error:', error);
@@ -2808,6 +2898,12 @@ app.get('/api/admin/reports/active-fds', async (req, res) => {
     
     try {
       const result = await client.query(`
+        WITH last_credited AS (
+          SELECT fd_id, MAX(calculation_date) AS last_date
+          FROM fd_interest_calculations
+          WHERE status = 'credited'
+          GROUP BY fd_id
+        )
         SELECT 
           fd.fd_id,
           a.account_id,
@@ -2817,19 +2913,15 @@ app.get('/api/admin/reports/active-fds', async (req, res) => {
           fd.open_date,
           fd.maturity_date,
           fd.auto_renewal_status,
-          CASE 
-            WHEN DATE_PART('day', CURRENT_DATE) >= 1 THEN 
-              DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
-            ELSE 
-              DATE_TRUNC('month', CURRENT_DATE)
-          END as next_interest_date
+          (COALESCE(l.last_date, fd.open_date) + INTERVAL '30 days')::date AS next_interest_date
         FROM fixeddeposit fd
         JOIN fdplan fp ON fd.fd_plan_id = fp.fd_plan_id
         JOIN account a ON fd.fd_id = a.fd_id
         JOIN takes t ON a.account_id = t.account_id
         JOIN customer c ON t.customer_id = c.customer_id
+        LEFT JOIN last_credited l ON l.fd_id = fd.fd_id
         WHERE fd.fd_status = 'Active'
-        GROUP BY fd.fd_id, a.account_id, fd.fd_balance, fp.interest, fd.open_date, fd.maturity_date, fd.auto_renewal_status
+        GROUP BY fd.fd_id, a.account_id, fd.fd_balance, fp.interest, fd.open_date, fd.maturity_date, fd.auto_renewal_status, l.last_date
         ORDER BY fd.open_date DESC
       `);
 

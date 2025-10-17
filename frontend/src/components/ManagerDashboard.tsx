@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import TeamManagement from './TeamManagement';
 import TransactionReports from './TransactionReports';
 import CustomerAccounts from './CustomerAccounts';
+import ManagerCustomerSearch from './ManagerCustomerSearch';
 
 const ManagerDashboard: React.FC = () => {
   const [activeSection, setActiveSection] = useState<string>(() => {
@@ -15,7 +16,7 @@ const ManagerDashboard: React.FC = () => {
 
   return (
     <div className="manager-dashboard">
-      <h2>Manager Dashboard</h2>
+      
       
       <nav className="admin-nav manager-nav">
         <ul>
@@ -24,7 +25,7 @@ const ManagerDashboard: React.FC = () => {
               className={activeSection === 'overview' ? 'active' : ''}
               onClick={() => setActiveSection('overview')}
             >
-              📊 Overview
+              Overview
             </button>
           </li>
           <li>
@@ -32,7 +33,7 @@ const ManagerDashboard: React.FC = () => {
               className={activeSection === 'team' ? 'active' : ''}
               onClick={() => setActiveSection('team')}
             >
-              👥 Team Management
+              Team Management
             </button>
           </li>
           <li>
@@ -40,7 +41,7 @@ const ManagerDashboard: React.FC = () => {
               className={activeSection === 'transactions' ? 'active' : ''}
               onClick={() => setActiveSection('transactions')}
             >
-              💰 Transaction Summary
+              Transaction Summary
             </button>
           </li>
           <li>
@@ -48,7 +49,15 @@ const ManagerDashboard: React.FC = () => {
               className={activeSection === 'customers' ? 'active' : ''}
               onClick={() => setActiveSection('customers')}
             >
-              🏦 Customer Accounts
+              Customer Accounts
+            </button>
+          </li>
+          <li>
+            <button 
+              className={activeSection === 'customer-search' ? 'active' : ''}
+              onClick={() => setActiveSection('customer-search')}
+            >
+              Customer Details
             </button>
           </li>
         </ul>
@@ -73,6 +82,11 @@ const ManagerDashboard: React.FC = () => {
                 <p>Manage customer accounts in your branch</p>
                 <button onClick={() => setActiveSection('customers')}>Manage Accounts</button>
               </div>
+              <div className="card">
+                <h3>Search Customers</h3>
+                <p>Find customers by name or NIC in your branch</p>
+                <button onClick={() => setActiveSection('customer-search')}>Search</button>
+              </div>
               
             </div>
           </div>
@@ -80,6 +94,7 @@ const ManagerDashboard: React.FC = () => {
         {activeSection === 'team' && <TeamManagement />}
         {activeSection === 'transactions' && <TransactionReports />}
         {activeSection === 'customers' && <CustomerAccounts />}
+        {activeSection === 'customer-search' && <ManagerCustomerSearch />}
       </div>
     </div>
   );

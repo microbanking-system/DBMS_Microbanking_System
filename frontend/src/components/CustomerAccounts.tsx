@@ -25,7 +25,7 @@ interface Account {
 interface AccountSummary {
   total_accounts: number;
   active_accounts: number;
-  inactive_accounts: number;
+  closed_accounts: number;
   total_balance: number;
   average_balance: number;
 }
@@ -91,7 +91,7 @@ const CustomerAccounts: React.FC = () => {
   const getStatusBadgeClass = (status: string): string => {
     switch (status.toLowerCase()) {
       case 'active': return 'status-badge status-active';
-      case 'inactive': return 'status-badge status-inactive';
+      case 'closed': return 'status-badge status-closed';
       default: return 'status-badge';
     }
   };
@@ -187,7 +187,7 @@ const CustomerAccounts: React.FC = () => {
               <div className="summary-value">{summary.total_accounts}</div>
               <div className="summary-detail">
                 <span className="active">{summary.active_accounts} Active</span>
-                <span className="inactive">{summary.inactive_accounts} Inactive</span>
+                <span className="inactive">{summary.closed_accounts} Closed</span>
               </div>
             </div>
           </div>
@@ -237,7 +237,7 @@ const CustomerAccounts: React.FC = () => {
           >
             <option value="all">All Status</option>
             <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
+            <option value="closed">Closed</option>
           </select>
           
           <select 
@@ -327,7 +327,7 @@ const CustomerAccounts: React.FC = () => {
                       <div className="balance-amount">
                         {formatCurrency(account.balance)}
                       </div>
-                      {account.min_balance > 0 && account.balance < account.min_balance && (
+                      {account.account_status === 'Active' && account.min_balance > 0 && account.balance < account.min_balance && (
                         <div className="min-balance-warning">
                           Below min: {formatCurrency(account.min_balance)}
                         </div>

@@ -49,6 +49,7 @@ interface ExistingFD {
   interest: number;
   account_id: number;
   customer_names: string;
+  customer_nics?: string;
 }
 
 const FixedDepositCreation: React.FC = () => {
@@ -118,8 +119,7 @@ const FixedDepositCreation: React.FC = () => {
       const results = customers.filter(customer => 
         customer.first_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
         customer.last_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
-        customer.nic.includes(customerSearchTerm) ||
-        customer.customer_id.toString().includes(customerSearchTerm)
+        customer.nic.includes(customerSearchTerm)
       );
       setCustomerSearchResults(results.slice(0, 5)); // Limit to 5 results
     } else {
@@ -184,21 +184,12 @@ const FixedDepositCreation: React.FC = () => {
       setSearchResults(response.data.fixed_deposits);
     } catch (error: any) {
       console.error('Search failed:', error);
-      // Enhanced client-side search as fallback
+      // Client-side fallback: FD ID or NIC only
       const searchTerm = searchFdId.toLowerCase();
-      const results = existingFDs.filter(fd => {
-        // Check FD ID
-        if (fd.fd_id.toString().includes(searchTerm)) return true;
-        
-        // Check account ID
-        if (fd.account_id.toString().includes(searchTerm)) return true;
-        
-        // Check customer names (handle multiple customers)
-        if (fd.customer_names.toLowerCase().includes(searchTerm)) return true;
-        
-        // Check individual customer names in case of multiple customers
-        const customerNames = fd.customer_names.split(',').map(name => name.trim().toLowerCase());
-        return customerNames.some(name => name.includes(searchTerm));
+      const results = existingFDs.filter((fd: any) => {
+        const idMatch = fd.fd_id.toString().includes(searchTerm);
+        const nicMatch = (fd.customer_nics || '').toLowerCase().includes(searchTerm);
+        return idMatch || nicMatch;
       });
       setSearchResults(results);
     } finally {
@@ -270,6 +261,12 @@ const FixedDepositCreation: React.FC = () => {
       // Check if account already has an FD
       if (account.fd_id) {
         console.log('Account already has FD:', account.fd_id);
+        return false;
+      }
+
+      // Exclude accounts for under-18 plans (Children, Teen)
+      if (account.plan_type === 'Children' || account.plan_type === 'Teen') {
+        console.log('Account is Child/Teen plan; excluded');
         return false;
       }
 
@@ -399,7 +396,7 @@ const FixedDepositCreation: React.FC = () => {
         }
       });
       
-      setSuccessMessage(`Fixed Deposit created successfully! FD Account: ${response.data.fd_account_number}`);
+  setSuccessMessage(`Fixed Deposit created successfully! FD Account: ${response.data.fd_id}`);
       setFormData({
         customer_id: 0,
         account_id: 0,
@@ -589,7 +586,7 @@ const FixedDepositCreation: React.FC = () => {
                           <div className="search-box">
                             <input
                               type="text"
-                              placeholder="Search customers by name, NIC, or ID..."
+                              placeholder="Search by customer name or NIC/birth certificate number..."
                               value={customerSearchTerm}
                               onChange={(e) => setCustomerSearchTerm(e.target.value)}
                               className="search-input"
@@ -670,7 +667,7 @@ const FixedDepositCreation: React.FC = () => {
                       {getEligibleAccounts().length === 0 ? (
                         <small className="form-help text-warning">
                           No eligible savings accounts found for {selectedCustomer.first_name} {selectedCustomer.last_name}. 
-                          Customer needs an individual savings account with positive balance and no existing FD.
+                          Customer must be 18+ and needs an individual savings account with positive balance and no existing FD.
                         </small>
                       ) : (
                         <small className="form-help">
@@ -840,7 +837,7 @@ const FixedDepositCreation: React.FC = () => {
             <div className="search-box">
               <input
                 type="text"
-                placeholder="Search by FD Account Number, Customer Name, or Savings Account..."
+                placeholder="Search by FD Account ID or Holder NIC..."
                 value={searchFdId}
                 onChange={(e) => setSearchFdId(e.target.value)}
                 className="search-input"

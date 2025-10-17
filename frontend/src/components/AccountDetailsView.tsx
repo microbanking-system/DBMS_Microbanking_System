@@ -12,6 +12,7 @@ interface Account {
   interest: number;
   min_balance: number;
   customer_names: string;
+  customer_nics: string;
   customer_count: number;
   fd_id: number | null;
 }
@@ -48,7 +49,7 @@ const AccountDetailsView: React.FC = () => {
   const [selectedAccount, setSelectedAccount] = useState<AccountDetails | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredAccounts, setFilteredAccounts] = useState<Account[]>([]);
-  const [activeStatus, setActiveStatus] = useState<'All' | 'Active' | 'Inactive'>('All');
+  const [activeStatus, setActiveStatus] = useState<'All' | 'Active' | 'Closed'>('All');
   const [hasSearched, setHasSearched] = useState(false);
 
   // Fetch all accounts on component mount
@@ -62,10 +63,10 @@ const AccountDetailsView: React.FC = () => {
 
     // Filter by search term
     if (searchTerm.trim()) {
+      const q = searchTerm.trim().toLowerCase();
       results = results.filter(account =>
-        account.account_id.toString().includes(searchTerm) ||
-        account.customer_names.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        account.plan_type.toLowerCase().includes(searchTerm.toLowerCase())
+        account.account_id.toString().includes(q) ||
+        account.customer_nics?.toLowerCase().includes(q)
       );
     }
 
@@ -130,7 +131,7 @@ const AccountDetailsView: React.FC = () => {
   const getStatusBadge = (status: string) => {
     const statusColors = {
       'Active': 'success',
-      'Inactive': 'danger'
+      'Closed': 'danger'
     };
     
     const color = statusColors[status as keyof typeof statusColors] || 'secondary';
@@ -188,7 +189,7 @@ const AccountDetailsView: React.FC = () => {
           <div className="search-box">
             <input
               type="text"
-              placeholder="Search by Account ID, Customer Name, or Plan Type..."
+              placeholder="Search by Account ID or Customer NIC..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="search-input"
@@ -227,10 +228,10 @@ const AccountDetailsView: React.FC = () => {
               Active
             </button>
             <button
-              className={`filter-btn ${activeStatus === 'Inactive' ? 'active' : ''}`}
-              onClick={() => setActiveStatus('Inactive')}
+              className={`filter-btn ${activeStatus === 'Closed' ? 'active' : ''}`}
+              onClick={() => setActiveStatus('Closed')}
             >
-              Inactive
+              Closed
             </button>
           </div>
 

@@ -95,19 +95,10 @@ const CustomerRegistration: React.FC = () => {
     
     if (!formData.nic.trim()) {
       newErrors.nic = 'NIC is required';
-    } else if (!/^[0-9]{9}[VvXx]?$|^[0-9]{12}$/.test(formData.nic)) {
-      newErrors.nic = 'Please enter a valid NIC number (9 digits with V/X or 12 digits)';
     }
     
     if (!formData.date_of_birth) {
       newErrors.date_of_birth = 'Date of birth is required';
-    } else {
-      const dob = new Date(formData.date_of_birth);
-      const today = new Date();
-      const age = today.getFullYear() - dob.getFullYear();
-      if (age < 18) {
-        newErrors.date_of_birth = 'Customer must be at least 18 years old';
-      }
     }
     
     setErrors(newErrors);
@@ -271,9 +262,6 @@ const CustomerRegistration: React.FC = () => {
   const handleEditSave = async () => {
     if (!editDetails) return;
     const newErrors: FormErrors = {};
-    if (!editDetails.first_name?.trim()) newErrors.first_name = 'Required';
-    if (!editDetails.last_name?.trim()) newErrors.last_name = 'Required';
-    if (!editDetails.nic?.trim()) newErrors.nic = 'Required';
     if (!editDetails.contact_no_1?.trim()) newErrors.contact_no_1 = 'Required';
     if (!editDetails.address?.trim()) newErrors.address = 'Required';
     if (!editDetails.email?.trim()) newErrors.email = 'Required';
@@ -283,12 +271,18 @@ const CustomerRegistration: React.FC = () => {
     setEditSaving(true);
     try {
       const token = localStorage.getItem('token');
-      await axios.put(`/api/agent/customers/${editDetails.customer_id}`, editDetails, {
+      // Send only contact fields to the new endpoint
+      await axios.put(`/api/agent/customers/${editDetails.customer_id}/contact`, {
+        contact_no_1: editDetails.contact_no_1,
+        contact_no_2: editDetails.contact_no_2,
+        address: editDetails.address,
+        email: editDetails.email,
+      }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setEditSuccess('Customer updated successfully');
+      setEditSuccess('Contact details updated successfully');
     } catch (e: any) {
-      alert(e.response?.data?.message || 'Failed to update customer');
+      alert(e.response?.data?.message || 'Failed to update contact details');
     } finally {
       setEditSaving(false);
     }
@@ -441,7 +435,7 @@ const CustomerRegistration: React.FC = () => {
                       className={errors.date_of_birth ? 'input-error' : ''}
                     />
                     {errors.date_of_birth && <p className="error-message">{errors.date_of_birth}</p>}
-                    {formData.date_of_birth && !errors.date_of_birth && (
+                    {formData.date_of_birth && !errors.date_of_birth && calculateAge(formData.date_of_birth) >= 0 && (
                       <p className="help-text">Age: {calculateAge(formData.date_of_birth)} years</p>
                     )}
                   </div>
@@ -617,63 +611,9 @@ const CustomerRegistration: React.FC = () => {
                         <button className="close-btn" onClick={() => setEditSuccess('')}>×</button>
                       </div>
                     )}
-
-                    <div className="form-grid">
-                      <div className="form-group">
-                        <label>First Name *</label>
-                        <input
-                          type="text"
-                          value={editDetails.first_name}
-                          onChange={(e) => setEditDetails({ ...editDetails!, first_name: e.target.value })}
-                          className={editErrors.first_name ? 'input-error' : ''}
-                        />
-                        {editErrors.first_name && <p className="error-message">{editErrors.first_name}</p>}
-                      </div>
-
-                      <div className="form-group">
-                        <label>Last Name *</label>
-                        <input
-                          type="text"
-                          value={editDetails.last_name}
-                          onChange={(e) => setEditDetails({ ...editDetails!, last_name: e.target.value })}
-                          className={editErrors.last_name ? 'input-error' : ''}
-                        />
-                        {editErrors.last_name && <p className="error-message">{editErrors.last_name}</p>}
-                      </div>
-                    </div>
-
-                    <div className="form-grid">
-                      <div className="form-group">
-                        <label>NIC *</label>
-                        <input
-                          type="text"
-                          value={editDetails.nic}
-                          onChange={(e) => setEditDetails({ ...editDetails!, nic: e.target.value })}
-                          className={editErrors.nic ? 'input-error' : ''}
-                        />
-                        {editErrors.nic && <p className="error-message">{editErrors.nic}</p>}
-                      </div>
-
-                      <div className="form-group">
-                        <label>Gender *</label>
-                        <select
-                          value={editDetails.gender}
-                          onChange={(e) => setEditDetails({ ...editDetails!, gender: e.target.value })}
-                        >
-                          <option value="Male">Male</option>
-                          <option value="Female">Female</option>
-                          <option value="Other">Other</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="form-group">
-                      <label>Date of Birth *</label>
-                      <input
-                        type="date"
-                        value={editDetails.date_of_birth?.split('T')[0] || editDetails.date_of_birth}
-                        onChange={(e) => setEditDetails({ ...editDetails!, date_of_birth: e.target.value })}
-                      />
+                    {/* Personal details are not editable here */}
+                    <div className="info-message" style={{ marginBottom: '8px', color: '#555' }}>
+                      Only contact details can be updated on this screen.
                     </div>
 
                     <div className="section-divider"><h5>Contact</h5></div>

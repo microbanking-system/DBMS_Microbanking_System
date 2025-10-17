@@ -4,3 +4,21 @@ Admin Password : admin123
 Database : psql -U postgres : password = 123
 Backend : npm run dev
 Frontend : npm start
+
+
+
+
+cd /home/rnp/DBMS_Microbanking_System
+
+# Drop and re-create the database (you will be prompted for the postgres password)
+dropdb --if-exists -U postgres -h localhost newdb
+createdb -U postgres -h localhost newdb
+
+# Initialize schema
+psql -U postgres -h localhost -d newdb -f database/init-postgres.sql
+
+# Seed saving plans and FD plans
+psql -U postgres -h localhost -d newdb -f database/insert-interests.sql
+
+# Seed admin user
+psql -U postgres -h localhost -d newdb -f database/insert-admin.sql
