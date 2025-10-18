@@ -205,12 +205,20 @@ const processDailySavingsInterest = async () => {
   }
 };
 
-// Schedule to run on 1st of every month
-cron.schedule('0 3 * * *', processDailyFDInterest); // FD interest daily at 3:00 AM
-cron.schedule('30 3 * * *', processDailySavingsInterest); // Savings interest daily at 3:30 AM
+// Scheduling configuration
+// Default daily schedules, but allow override via env for testing
+// Set INTEREST_CRON_DEBUG=1 to run both every minute temporarily
+const FD_CRON = process.env.FD_INTEREST_CRON || (process.env.INTEREST_CRON_DEBUG === '1' ? '* * * * *' : '0 3 * * *');
+const SAVINGS_CRON = process.env.SAVINGS_INTEREST_CRON || (process.env.INTEREST_CRON_DEBUG === '1' ? '* * * * *' : '30 3 * * *');
 
-console.log('✅ FD Interest Auto-Processor: Scheduled daily at 3:00 AM');
-console.log('✅ Savings Interest Auto-Processor: Scheduled daily at 3:30 AM');
+cron.schedule(FD_CRON, processDailyFDInterest); // FD interest
+cron.schedule(SAVINGS_CRON, processDailySavingsInterest); // Savings interest
+
+if (process.env.INTEREST_CRON_DEBUG === '1') {
+  console.warn(`⚠️ Interest processors set to DEBUG mode (every minute). Disable by unsetting INTEREST_CRON_DEBUG.`);
+}
+console.log(`✅ FD Interest Auto-Processor: Scheduled '${FD_CRON}'`);
+console.log(`✅ Savings Interest Auto-Processor: Scheduled '${SAVINGS_CRON}'`);
 
 // =============================================================================
 // OPTIMIZED: Transaction Processing using Database Functions
@@ -1368,6 +1376,9 @@ app.put('/api/agent/customers/:id/contact', async (req, res) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      // Set actor for auditing context
+      await client.query("SELECT set_config('app.actor_employee_id', $1, true)", [decoded.id.toString()]);
 
       // Retrieve contact_id for the customer
       const existing = await client.query('SELECT contact_id FROM customer WHERE customer_id = $1', [id]);

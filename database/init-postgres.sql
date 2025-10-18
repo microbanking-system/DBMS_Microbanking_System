@@ -883,6 +883,57 @@ CREATE TRIGGER trigger_customer_audit
     FOR EACH ROW
     EXECUTE FUNCTION audit_customer_changes();
 
+-- Also audit when a customer's contact information changes (contact table updates)
+CREATE OR REPLACE FUNCTION audit_customer_contact_changes() RETURNS TRIGGER AS $$
+DECLARE
+    v_changed TEXT[] := ARRAY[]::TEXT[];
+    v_actor TEXT;
+    v_actor_id INTEGER;
+    rec RECORD;
+BEGIN
+    -- Only for customer type contacts
+    IF NEW.type <> 'customer' THEN
+        RETURN NEW;
+    END IF;
+
+    -- Determine which contact fields changed
+    IF NEW.contact_no_1 IS DISTINCT FROM OLD.contact_no_1 THEN v_changed := array_append(v_changed, 'contact_no_1'); END IF;
+    IF NEW.contact_no_2 IS DISTINCT FROM OLD.contact_no_2 THEN v_changed := array_append(v_changed, 'contact_no_2'); END IF;
+    IF NEW.address      IS DISTINCT FROM OLD.address      THEN v_changed := array_append(v_changed, 'address');      END IF;
+    IF NEW.email        IS DISTINCT FROM OLD.email        THEN v_changed := array_append(v_changed, 'email');        END IF;
+
+    -- If nothing relevant changed, skip
+    IF array_length(v_changed, 1) IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    -- Actor from session context
+    v_actor := current_setting('app.actor_employee_id', true);
+    IF v_actor IS NOT NULL THEN v_actor_id := v_actor::INTEGER; END IF;
+
+    -- For each customer using this contact, write an audit row
+    FOR rec IN SELECT customer_id FROM customer WHERE contact_id = NEW.contact_id LOOP
+        INSERT INTO customer_audit_log (
+            customer_id, changed_by_employee_id, changed_fields, old_data, new_data
+        ) VALUES (
+            rec.customer_id,
+            v_actor_id,
+            v_changed,
+            jsonb_build_object('contact', to_jsonb(OLD)),
+            jsonb_build_object('contact', to_jsonb(NEW))
+        );
+    END LOOP;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_customer_contact_audit ON contact;
+CREATE TRIGGER trigger_customer_contact_audit
+    AFTER UPDATE OF contact_no_1, contact_no_2, address, email ON contact
+    FOR EACH ROW
+    EXECUTE FUNCTION audit_customer_contact_changes();
+
 -- =============================================================================
 -- OPTIMIZATION: Materialized Views for Reporting
 -- =============================================================================
