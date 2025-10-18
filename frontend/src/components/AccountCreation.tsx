@@ -47,6 +47,15 @@ interface ExistingAccount {
   customer_names: string;
   customer_count: number;
   branch_name: string;
+  customer_nics?: string;
+}
+
+interface PlanChangeState {
+  selectedAccountId: number | null;
+  newSavingPlanId: number | null;
+  reason: string;
+  isSubmitting: boolean;
+  newNic?: string;
 }
 
 const AccountCreation: React.FC = () => {
@@ -73,6 +82,15 @@ const AccountCreation: React.FC = () => {
   const [searchAccountId, setSearchAccountId] = useState('');
   const [accountSearchResults, setAccountSearchResults] = useState<ExistingAccount[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+
+  const [planChange, setPlanChange] = useState<PlanChangeState>({
+    selectedAccountId: null,
+    newSavingPlanId: null,
+    reason: '',
+    isSubmitting: false,
+    newNic: ''
+  });
   
   const [formData, setFormData] = useState<AccountFormData>({
     customer_id: 0,
@@ -104,8 +122,7 @@ const AccountCreation: React.FC = () => {
       const results = customers.filter(customer => 
         customer.first_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
         customer.last_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
-        customer.nic.includes(customerSearchTerm) ||
-        customer.customer_id.toString().includes(customerSearchTerm)
+        customer.nic.includes(customerSearchTerm)
       );
       setCustomerSearchResults(results.slice(0, 5)); // Limit to 5 results
     } else {
@@ -122,8 +139,7 @@ const AccountCreation: React.FC = () => {
         (
           customer.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           customer.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          customer.nic.includes(searchTerm) ||
-          customer.customer_id.toString().includes(searchTerm)
+          customer.nic.includes(searchTerm)
         )
       );
       setSearchResults(results.slice(0, 5)); // Limit to 5 results
@@ -172,19 +188,24 @@ const AccountCreation: React.FC = () => {
   };
 
   const searchAccount = () => {
+    setHasSearched(true);
+    
     if (!searchAccountId.trim()) {
-      setAccountSearchResults(existingAccounts);
+      // empty search should not show all accounts
+      setAccountSearchResults([]);
       return;
     }
 
     setIsSearching(true);
     
-    // Simple client-side search
-    const results = existingAccounts.filter(account =>
-      account.account_id.toString().includes(searchAccountId) ||
-      account.customer_names.toLowerCase().includes(searchAccountId.toLowerCase()) ||
-      account.plan_type.toLowerCase().includes(searchAccountId.toLowerCase())
-    );
+    // Simple client-side search (Manage tab): only by Account ID or Customer NIC
+    const term = searchAccountId.toLowerCase();
+    const results = existingAccounts.filter(account => {
+      const idMatch = account.account_id.toString().includes(term);
+      // Try to match NICs if provided; backend list may not include NICs per customer, so rely on substring search in names field only for NIC if embedded
+      const nicMatch = (account.customer_nics || '').toLowerCase().includes(term);
+      return idMatch || nicMatch;
+    });
     
     setAccountSearchResults(results);
     setIsSearching(false);
@@ -225,6 +246,54 @@ const AccountCreation: React.FC = () => {
   }
   };
 
+  const eligiblePlansForAccount = (account: ExistingAccount) => {
+    // Exclude Joint from candidates
+    const nonJoint = savingPlans.filter(p => p.plan_type !== 'Joint');
+
+    // Determine owner age from customers list isn't available here; for simplicity, rely on backend validation.
+    // Show all non-Joint plans except identical current plan.
+    return nonJoint.filter(p => p.saving_plan_id !== account.saving_plan_id);
+  };
+
+  const shouldShowNicForAccount = (account: ExistingAccount) => {
+    if (planChange.selectedAccountId !== account.account_id || !planChange.newSavingPlanId) return false;
+    const targetPlan = savingPlans.find(p => p.saving_plan_id === planChange.newSavingPlanId);
+    return account.plan_type === 'Teen' && targetPlan?.plan_type === 'Adult';
+  };
+
+  const changePlan = async (account: ExistingAccount) => {
+    if (!planChange.newSavingPlanId) {
+      alert('Please select a new plan');
+      return;
+    }
+    if (!planChange.reason.trim()) {
+      alert('Please provide a reason');
+      return;
+    }
+
+    try {
+      setPlanChange(pc => ({ ...pc, isSubmitting: true }));
+      const token = localStorage.getItem('token');
+      const response = await axios.post('/api/agent/accounts/change-plan', {
+        account_id: account.account_id,
+        new_saving_plan_id: planChange.newSavingPlanId,
+        reason: planChange.reason.trim(),
+        new_nic: planChange.newNic && planChange.selectedAccountId === account.account_id ? planChange.newNic.trim() : undefined
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Update UI: refresh existing accounts and search results
+      await loadExistingAccounts();
+      setSuccessMessage('Plan changed successfully');
+  setPlanChange({ selectedAccountId: null, newSavingPlanId: null, reason: '', isSubmitting: false, newNic: '' });
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || 'Failed to change plan';
+      alert(msg);
+      setPlanChange(pc => ({ ...pc, isSubmitting: false }));
+    }
+  };
+
   const calculateAge = (dateOfBirth: string): number => {
     const dob = new Date(dateOfBirth);
     const today = new Date();
@@ -245,10 +314,28 @@ const AccountCreation: React.FC = () => {
       case 'children':
         return 0; // No minimum age for children accounts
       case 'teen':
-        return 0; // Example: Student accounts might require at least 5 years
+        return 12; // Teen accounts require minimum age 12
       default:
         return 18; // Default adult account
     }
+  };
+
+  // Determine the single-holder plan type based on age
+  const getSinglePlanTypeForAge = (age: number): 'Children' | 'Teen' | 'Adult' | 'Senior' => {
+    if (age >= 60) return 'Senior';
+    if (age >= 18) return 'Adult';
+    if (age >= 12) return 'Teen';
+    return 'Children';
+  };
+
+  // Get eligible plans given the selected customer's age
+  const getEligiblePlans = (): SavingPlan[] => {
+    if (!selectedCustomer || savingPlans.length === 0) return savingPlans;
+    const age = calculateAge(selectedCustomer.date_of_birth);
+    const singleType = getSinglePlanTypeForAge(age);
+    const singlePlan = savingPlans.find(p => p.plan_type === singleType);
+    const jointPlan = age >= 18 ? savingPlans.find(p => p.plan_type === 'Joint') : undefined;
+    return [singlePlan, jointPlan].filter(Boolean) as SavingPlan[];
   };
 
   const validateForm = (): boolean => {
@@ -394,6 +481,17 @@ const AccountCreation: React.FC = () => {
     setCustomerSearchTerm('');
     setCustomerSearchResults([]);
     setShowCustomerSearch(false);
+    // Auto-select plan based on age bracket when customer is chosen
+    const age = calculateAge(customer.date_of_birth);
+    const targetType = getSinglePlanTypeForAge(age);
+    const targetPlan = savingPlans.find(p => p.plan_type === targetType) || null;
+    if (targetPlan) {
+      setFormData(prev => ({ ...prev, saving_plan_id: targetPlan.saving_plan_id }));
+      setSelectedPlan(targetPlan);
+      // Clear joint holders since we're defaulting to a single-holder plan
+      setJointHolders([]);
+      setShowSearch(false);
+    }
     
     // Clear customer selection error
     if (errors.customer_id) {
@@ -404,6 +502,27 @@ const AccountCreation: React.FC = () => {
       });
     }
   };
+
+  // Keep selected plan in sync if saving plans or selected customer changes
+  useEffect(() => {
+    if (!selectedCustomer || savingPlans.length === 0) return;
+    const age = calculateAge(selectedCustomer.date_of_birth);
+    const eligible = getEligiblePlans();
+    // If current selection is not eligible, switch to age-based single plan
+    const current = savingPlans.find(p => p.saving_plan_id === formData.saving_plan_id) || null;
+    const stillEligible = current && eligible.some(p => p.saving_plan_id === current.saving_plan_id);
+    if (!stillEligible) {
+      const singleType = getSinglePlanTypeForAge(age);
+      const singlePlan = savingPlans.find(p => p.plan_type === singleType) || null;
+      if (singlePlan) {
+        setFormData(prev => ({ ...prev, saving_plan_id: singlePlan.saving_plan_id }));
+        setSelectedPlan(singlePlan);
+        setJointHolders([]);
+        setShowSearch(false);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCustomer, savingPlans]);
 
   const removeSelectedCustomer = () => {
     setFormData(prev => ({
@@ -444,7 +563,7 @@ const AccountCreation: React.FC = () => {
   const getStatusBadge = (status: string) => {
     const statusColors = {
       'Active': 'success',
-      'Inactive': 'danger'
+      'Closed': 'danger'
     };
     
     const color = statusColors[status as keyof typeof statusColors] || 'secondary';
@@ -535,14 +654,18 @@ const AccountCreation: React.FC = () => {
                         className="btn btn-secondary btn-block"
                         onClick={() => setShowCustomerSearch(true)}
                       >
-                        🔍 Search Customer
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px', verticalAlign: 'middle'}}>
+                          <circle cx="11" cy="11" r="8"></circle>
+                          <path d="m21 21-4.35-4.35"></path>
+                        </svg>
+                        Search Customer
                       </button>
                     ) : (
                       <div className="search-customer">
                         <div className="search-box">
                           <input
                             type="text"
-                            placeholder="Search customers by name, NIC, or ID..."
+                            placeholder="Search by customer name or NIC/birth certificate number..."
                             value={customerSearchTerm}
                             onChange={(e) => setCustomerSearchTerm(e.target.value)}
                             className="search-input"
@@ -612,7 +735,7 @@ const AccountCreation: React.FC = () => {
                     className={errors.saving_plan_id ? 'error' : ''}
                   >
                     <option value="">Choose a saving plan...</option>
-                    {savingPlans.map(plan => (
+                    {(getEligiblePlans()).map(plan => (
                       <option key={plan.saving_plan_id} value={plan.saving_plan_id}>
                         {getPlanDescription(plan)}
                       </option>
@@ -692,7 +815,7 @@ const AccountCreation: React.FC = () => {
                         <div className="search-box">
                           <input
                             type="text"
-                            placeholder="Search customers by name, NIC, or ID..."
+                            placeholder="Search by customer name or NIC/birth certificate number..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="search-input"
@@ -849,7 +972,7 @@ const AccountCreation: React.FC = () => {
             <div className="search-box">
               <input
                 type="text"
-                placeholder="Search by Account ID, Customer Name, or Plan Type..."
+                placeholder="Search by Account ID or Customer NIC..."
                 value={searchAccountId}
                 onChange={(e) => setSearchAccountId(e.target.value)}
                 className="search-input"
@@ -867,7 +990,8 @@ const AccountCreation: React.FC = () => {
                 className="btn btn-secondary"
                 onClick={() => {
                   setSearchAccountId('');
-                  setAccountSearchResults(existingAccounts);
+                  setAccountSearchResults([]);
+                  setHasSearched(false);
                 }}
               >
                 Clear
@@ -875,116 +999,153 @@ const AccountCreation: React.FC = () => {
             </div>
           </div>
 
-          <div className="account-list">
-            <h6>Savings Accounts ({accountSearchResults.length})</h6>
-            
-            {accountSearchResults.length === 0 ? (
-              <div className="no-data">
-                {searchAccountId ? 
-                  `No accounts found matching "${searchAccountId}"` : 
-                  'No savings accounts found.'
-                }
-              </div>
-            ) : (
-              <div className="account-grid">
-                {accountSearchResults.map(account => (
-                  <div key={account.account_id} className="account-card">
-                    <div className="account-header">
-                      <h6>Account: {account.account_id}</h6>
-                      {getStatusBadge(account.account_status)}
-                    </div>
-                    <div className="account-details">
-                      <div className="account-detail-row">
-                        <div className="detail-label">Customer(s):</div>
-                        <div className="detail-value">
-                          <div className="customer-info">
-                            <strong>{account.customer_names}</strong>
-                            {account.customer_count > 1 && (
-                              <small className="joint-badge">Joint Account ({account.customer_count})</small>
-                            )}
-                          </div>
-                        </div>
+          {/* Minimal results area: only show after a search */}
+          {hasSearched && (
+            <div className="account-list">
+              {accountSearchResults.length === 0 ? (
+                <div className="no-data">
+                  {searchAccountId
+                    ? `No accounts found matching "${searchAccountId}"`
+                    : 'Enter a term above and click Search.'}
+                </div>
+              ) : (
+                <div className="account-grid">
+                  {accountSearchResults.map(account => (
+                    <div key={account.account_id} className="account-card">
+                      <div className="account-header">
+                        <h6>Account: {account.account_id}</h6>
+                        {getStatusBadge(account.account_status)}
                       </div>
-                      
-                      <div className="account-detail-row">
-                        <div className="detail-label">Plan Type:</div>
-                        <div className="detail-value">
-                          <strong>{account.plan_type}</strong>
-                        </div>
-                      </div>
-                      
-                      <div className="account-detail-row">
-                        <div className="detail-label">Current Balance:</div>
-                        <div className="detail-value">
-                          <strong className={account.balance > 0 ? 'text-success' : 'text-muted'}>
-                            LKR {account.balance.toLocaleString()}
-                          </strong>
-                        </div>
-                      </div>
-                      
-                      <div className="account-detail-row">
-                        <div className="detail-label">Minimum Balance:</div>
-                        <div className="detail-value">
-                          <strong>LKR {account.min_balance.toLocaleString()}</strong>
-                        </div>
-                      </div>
-                      
-                      <div className="account-detail-row">
-                        <div className="detail-label">Open Date:</div>
-                        <div className="detail-value">
-                          <strong>{new Date(account.open_date).toLocaleDateString()}</strong>
-                        </div>
-                      </div>
-                      
-                      <div className="account-detail-row">
-                        <div className="detail-label">Interest Rate:</div>
-                        <div className="detail-value">
-                          <strong>{account.interest}%</strong>
-                        </div>
-                      </div>
-                      
-                      {account.fd_id && (
+                      <div className="account-details">
                         <div className="account-detail-row">
-                          <div className="detail-label">Fixed Deposit:</div>
+                          <div className="detail-label">Customer(s):</div>
                           <div className="detail-value">
-                            <strong className="text-warning">{account.fd_id} (Active)</strong>
+                            <div className="customer-info">
+                              <strong>{account.customer_names}</strong>
+                              {account.customer_count > 1 && (
+                                <small className="joint-badge">Joint Account ({account.customer_count})</small>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="account-detail-row">
+                          <div className="detail-label">Plan Type:</div>
+                          <div className="detail-value">
+                            <strong>{account.plan_type}</strong>
+                          </div>
+                        </div>
+
+                        <div className="account-detail-row">
+                          <div className="detail-label">Current Balance:</div>
+                          <div className="detail-value">
+                            <strong className={account.balance > 0 ? 'text-success' : 'text-muted'}>
+                              LKR {account.balance.toLocaleString()}
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="account-actions">
+                        {account.account_status === 'Active' && (
+                          <button
+                            type="button"
+                            className="btn btn-danger btn-sm"
+                            onClick={() => deactivateAccount(
+                              account.account_id,
+                              account.balance,
+                              account.customer_names
+                            )}
+                            disabled={account.fd_id !== null}
+                          >
+                            {account.fd_id ? 'Has Active FD' : 'Close Account'}
+                          </button>
+                        )}
+
+                        {account.account_status === 'Closed' && (
+                          <span className="text-muted">Account Closed</span>
+                        )}
+                      </div>
+
+                      {/* Plan Change UI */}
+                      {account.account_status === 'Active' && account.plan_type !== 'Joint' && (
+                        <div className="plan-change">
+                          <div className="form-row">
+                            <div className="form-group">
+                              <label>Change Plan</label>
+                              <select
+                                value={planChange.selectedAccountId === account.account_id ? (planChange.newSavingPlanId || '') : ''}
+                                onChange={(e) => {
+                                  const val = e.target.value ? Number(e.target.value) : null;
+                                  const targetPlan = val ? savingPlans.find(p => p.saving_plan_id === val) : undefined;
+                                  const willShowNic = account.plan_type === 'Teen' && targetPlan?.plan_type === 'Adult';
+                                  setPlanChange({
+                                    selectedAccountId: account.account_id,
+                                    newSavingPlanId: val,
+                                    reason: planChange.selectedAccountId === account.account_id ? planChange.reason : '',
+                                    isSubmitting: false,
+                                    newNic: planChange.selectedAccountId === account.account_id && willShowNic ? (planChange.newNic || '') : ''
+                                  });
+                                }}
+                              >
+                                <option value="">Select new plan...</option>
+                                {eligiblePlansForAccount(account).map(p => (
+                                  <option key={p.saving_plan_id} value={p.saving_plan_id}>
+                                    {p.plan_type} — {p.interest}% (Min LKR {p.min_balance.toLocaleString()})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="form-group" style={{ flex: 1 }}>
+                              <label>Reason</label>
+                              <input
+                                type="text"
+                                placeholder="e.g., Customer reached age threshold"
+                                value={planChange.selectedAccountId === account.account_id ? planChange.reason : ''}
+                                onChange={(e) => setPlanChange(pc => pc.selectedAccountId === account.account_id ? { ...pc, reason: e.target.value } : pc)}
+                              />
+                            </div>
+                          </div>
+                          {shouldShowNicForAccount(account) && (
+                            <div className="form-row">
+                              <div className="form-group" style={{ flex: 1 }}>
+                                <label>New NIC (required when Teen → Adult)</label>
+                                <input
+                                  type="text"
+                                  maxLength={15}
+                                  placeholder="Enter new NIC"
+                                  value={planChange.selectedAccountId === account.account_id ? (planChange.newNic || '') : ''}
+                                  onChange={(e) => setPlanChange(pc => pc.selectedAccountId === account.account_id ? { ...pc, newNic: e.target.value } : pc)}
+                                />
+                                <small className="form-help">Provide the official NIC to replace the birth certificate number.</small>
+                              </div>
+                            </div>
+                          )}
+                          <div className="form-actions">
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              onClick={() => changePlan(account)}
+                              disabled={planChange.isSubmitting || planChange.selectedAccountId !== account.account_id}
+                            >
+                              {planChange.isSubmitting && planChange.selectedAccountId === account.account_id ? 'Changing...' : 'Apply Plan Change'}
+                            </button>
                           </div>
                         </div>
                       )}
-                    </div>
-                    <div className="account-actions">
-                      {account.account_status === 'Active' && (
-                        <button
-                          type="button"
-                          className="btn btn-danger btn-sm"
-                          onClick={() => deactivateAccount(
-                            account.account_id, 
-                            account.balance, 
-                            account.customer_names
-                          )}
-                          disabled={account.fd_id !== null}
-                        >
-                          {account.fd_id ? 'Has Active FD' : 'Deactivate Account'}
-                        </button>
-                      )}
-                      
-                      {account.account_status === 'Inactive' && (
-                        <span className="text-muted">Account Inactive</span>
-                      )}
-                    </div>
 
-                    {account.account_status === 'Active' && account.fd_id && (
-                      <div className="account-warning">
-                        <small className="text-warning">
-                          ⚠️ Deactivate FD first before closing account
-                        </small>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                      {account.account_status === 'Active' && account.fd_id && (
+                        <div className="account-warning">
+                          <small className="text-warning">
+                            ⚠️ Deactivate FD first before closing account
+                          </small>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

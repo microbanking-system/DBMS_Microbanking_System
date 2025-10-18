@@ -49,6 +49,7 @@ interface ExistingFD {
   interest: number;
   account_id: number;
   customer_names: string;
+  customer_nics?: string;
 }
 
 const FixedDepositCreation: React.FC = () => {
@@ -64,11 +65,15 @@ const FixedDepositCreation: React.FC = () => {
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   
   // New state for FD management
-  const [activeTab, setActiveTab] = useState<'create' | 'manage'>('create');
+  const [activeTab, setActiveTab] = useState<'create' | 'manage'>(() => {
+    const saved = localStorage.getItem('fixedDepositCreation.activeTab') as 'create' | 'manage' | null;
+    return saved === 'manage' ? 'manage' : 'create';
+  });
   const [existingFDs, setExistingFDs] = useState<ExistingFD[]>([]);
   const [searchFdId, setSearchFdId] = useState('');
   const [searchResults, setSearchResults] = useState<ExistingFD[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   
   // Customer search state
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
@@ -95,10 +100,18 @@ const FixedDepositCreation: React.FC = () => {
     }
   }, [activeTab]);
 
-  // Sync search results with existing FDs
+  // Persist activeTab
   useEffect(() => {
-    setSearchResults(existingFDs);
-  }, [existingFDs]);
+    localStorage.setItem('fixedDepositCreation.activeTab', activeTab);
+  }, [activeTab]);
+
+  // Sync search results with existing FDs (keep data fresh, but UI only shows after search)
+  useEffect(() => {
+    if (hasSearched && !searchFdId.trim()) {
+      // If user cleared the term after a search, keep results empty
+      setSearchResults([]);
+    }
+  }, [existingFDs, hasSearched, searchFdId]);
 
   // Search for customers
   useEffect(() => {
@@ -106,8 +119,7 @@ const FixedDepositCreation: React.FC = () => {
       const results = customers.filter(customer => 
         customer.first_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
         customer.last_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
-        customer.nic.includes(customerSearchTerm) ||
-        customer.customer_id.toString().includes(customerSearchTerm)
+        customer.nic.includes(customerSearchTerm)
       );
       setCustomerSearchResults(results.slice(0, 5)); // Limit to 5 results
     } else {
@@ -155,8 +167,10 @@ const FixedDepositCreation: React.FC = () => {
   };
 
   const searchFD = async () => {
+    setHasSearched(true);
     if (!searchFdId.trim()) {
-      setSearchResults(existingFDs);
+      // empty search should not show all FDs
+      setSearchResults([]);
       return;
     }
 
@@ -170,21 +184,12 @@ const FixedDepositCreation: React.FC = () => {
       setSearchResults(response.data.fixed_deposits);
     } catch (error: any) {
       console.error('Search failed:', error);
-      // Enhanced client-side search as fallback
+      // Client-side fallback: FD ID or NIC only
       const searchTerm = searchFdId.toLowerCase();
-      const results = existingFDs.filter(fd => {
-        // Check FD ID
-        if (fd.fd_id.toString().includes(searchTerm)) return true;
-        
-        // Check account ID
-        if (fd.account_id.toString().includes(searchTerm)) return true;
-        
-        // Check customer names (handle multiple customers)
-        if (fd.customer_names.toLowerCase().includes(searchTerm)) return true;
-        
-        // Check individual customer names in case of multiple customers
-        const customerNames = fd.customer_names.split(',').map(name => name.trim().toLowerCase());
-        return customerNames.some(name => name.includes(searchTerm));
+      const results = existingFDs.filter((fd: any) => {
+        const idMatch = fd.fd_id.toString().includes(searchTerm);
+        const nicMatch = (fd.customer_nics || '').toLowerCase().includes(searchTerm);
+        return idMatch || nicMatch;
       });
       setSearchResults(results);
     } finally {
@@ -256,6 +261,12 @@ const FixedDepositCreation: React.FC = () => {
       // Check if account already has an FD
       if (account.fd_id) {
         console.log('Account already has FD:', account.fd_id);
+        return false;
+      }
+
+      // Exclude accounts for under-18 plans (Children, Teen)
+      if (account.plan_type === 'Children' || account.plan_type === 'Teen') {
+        console.log('Account is Child/Teen plan; excluded');
         return false;
       }
 
@@ -385,7 +396,7 @@ const FixedDepositCreation: React.FC = () => {
         }
       });
       
-      setSuccessMessage(`Fixed Deposit created successfully! FD Account: ${response.data.fd_account_number}`);
+  setSuccessMessage(`Fixed Deposit created successfully! FD Account: ${response.data.fd_id}`);
       setFormData({
         customer_id: 0,
         account_id: 0,
@@ -564,14 +575,18 @@ const FixedDepositCreation: React.FC = () => {
                           className="btn btn-secondary btn-block"
                           onClick={() => setShowCustomerSearch(true)}
                         >
-                          🔍 Search Customer
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px', verticalAlign: 'middle'}}>
+                          <circle cx="11" cy="11" r="8"></circle>
+                          <path d="m21 21-4.35-4.35"></path>
+                        </svg>
+                          Search Customer
                         </button>
                       ) : (
                         <div className="search-customer">
                           <div className="search-box">
                             <input
                               type="text"
-                              placeholder="Search customers by name, NIC, or ID..."
+                              placeholder="Search by customer name or NIC/birth certificate number..."
                               value={customerSearchTerm}
                               onChange={(e) => setCustomerSearchTerm(e.target.value)}
                               className="search-input"
@@ -652,7 +667,7 @@ const FixedDepositCreation: React.FC = () => {
                       {getEligibleAccounts().length === 0 ? (
                         <small className="form-help text-warning">
                           No eligible savings accounts found for {selectedCustomer.first_name} {selectedCustomer.last_name}. 
-                          Customer needs an individual savings account with positive balance and no existing FD.
+                          Customer must be 18+ and needs an individual savings account with positive balance and no existing FD.
                         </small>
                       ) : (
                         <small className="form-help">
@@ -721,7 +736,7 @@ const FixedDepositCreation: React.FC = () => {
                 <input
                   type="number"
                   name="principal_amount"
-                  value={formData.principal_amount}
+                  value={formData.principal_amount === 0 ? '' : formData.principal_amount}
                   onChange={handleInputChange}
                   required
                   min="0"
@@ -822,7 +837,7 @@ const FixedDepositCreation: React.FC = () => {
             <div className="search-box">
               <input
                 type="text"
-                placeholder="Search by FD Account Number, Customer Name, or Savings Account..."
+                placeholder="Search by FD Account ID or Holder NIC..."
                 value={searchFdId}
                 onChange={(e) => setSearchFdId(e.target.value)}
                 className="search-input"
@@ -840,7 +855,8 @@ const FixedDepositCreation: React.FC = () => {
                 className="btn btn-secondary"
                 onClick={() => {
                   setSearchFdId('');
-                  setSearchResults(existingFDs);
+                  setSearchResults([]);
+                  setHasSearched(false);
                 }}
               >
                 Clear
@@ -848,70 +864,70 @@ const FixedDepositCreation: React.FC = () => {
             </div>
           </div>
 
-          <div className="fd-list">
-            <h5>Fixed Deposit Accounts ({searchResults.length})</h5>
-            
-            {searchResults.length === 0 ? (
-              <div className="no-data">
-                {searchFdId ? 
-                  `No fixed deposits found matching "${searchFdId}"` : 
-                  'No fixed deposit accounts found.'
-                }
-              </div>
-            ) : (
-              <div className="fd-grid">
-                {searchResults.map(fd => (
-                  <div key={fd.fd_id} className="fd-card">
-                    <div className="fd-header">
-                      <h6>FD Account: {fd.fd_id}</h6>
-                      {getStatusBadge(fd.fd_status)}
+          {/* Minimal results area: only show after a search */}
+          {hasSearched && (
+            <div className="fd-list">
+              {searchResults.length === 0 ? (
+                <div className="no-data">
+                  {searchFdId
+                    ? `No fixed deposits found matching "${searchFdId}"`
+                    : 'Enter a term above and click Search.'}
+                </div>
+              ) : (
+                <div className="fd-grid">
+                  {searchResults.map(fd => (
+                    <div key={fd.fd_id} className="fd-card">
+                      <div className="fd-header">
+                        <h6>FD Account: {fd.fd_id}</h6>
+                        {getStatusBadge(fd.fd_status)}
+                      </div>
+                      <div className="fd-details">
+                        <div className="fd-detail">
+                          <span>Linked Savings Account:</span>
+                          <strong>{fd.account_id}</strong>
+                        </div>
+                        <div className="fd-detail">
+                          <span>Customer:</span>
+                          <strong>{fd.customer_names}</strong>
+                        </div>
+                        <div className="fd-detail">
+                          <span>Principal Amount:</span>
+                          <strong>LKR {fd.fd_balance.toLocaleString()}</strong>
+                        </div>
+                        <div className="fd-detail">
+                          <span>Plan:</span>
+                          <strong>{fd.fd_options} ({fd.interest}%)</strong>
+                        </div>
+                        <div className="fd-detail">
+                          <span>Open Date:</span>
+                          <strong>{new Date(fd.open_date).toLocaleDateString()}</strong>
+                        </div>
+                        <div className="fd-detail">
+                          <span>Maturity Date:</span>
+                          <strong>{new Date(fd.maturity_date).toLocaleDateString()}</strong>
+                        </div>
+                        <div className="fd-detail">
+                          <span>Auto Renewal:</span>
+                          <strong>{fd.auto_renewal_status === 'True' ? 'Yes' : 'No'}</strong>
+                        </div>
+                      </div>
+                      <div className="fd-actions">
+                        {fd.fd_status === 'Active' && (
+                          <button
+                            type="button"
+                            className="btn btn-danger btn-sm"
+                            onClick={() => deactivateFD(fd.fd_id, fd.fd_balance, fd.account_id)}
+                          >
+                            Deactivate FD
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="fd-details">
-                      <div className="fd-detail">
-                        <span>Linked Savings Account:</span>
-                        <strong>{fd.account_id}</strong>
-                      </div>
-                      <div className="fd-detail">
-                        <span>Customer:</span>
-                        <strong>{fd.customer_names}</strong>
-                      </div>
-                      <div className="fd-detail">
-                        <span>Principal Amount:</span>
-                        <strong>LKR {fd.fd_balance.toLocaleString()}</strong>
-                      </div>
-                      <div className="fd-detail">
-                        <span>Plan:</span>
-                        <strong>{fd.fd_options} ({fd.interest}%)</strong>
-                      </div>
-                      <div className="fd-detail">
-                        <span>Open Date:</span>
-                        <strong>{new Date(fd.open_date).toLocaleDateString()}</strong>
-                      </div>
-                      <div className="fd-detail">
-                        <span>Maturity Date:</span>
-                        <strong>{new Date(fd.maturity_date).toLocaleDateString()}</strong>
-                      </div>
-                      <div className="fd-detail">
-                        <span>Auto Renewal:</span>
-                        <strong>{fd.auto_renewal_status === 'True' ? 'Yes' : 'No'}</strong>
-                      </div>
-                    </div>
-                    <div className="fd-actions">
-                      {fd.fd_status === 'Active' && (
-                        <button
-                          type="button"
-                          className="btn btn-danger btn-sm"
-                          onClick={() => deactivateFD(fd.fd_id, fd.fd_balance, fd.account_id)}
-                        >
-                          Deactivate FD
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

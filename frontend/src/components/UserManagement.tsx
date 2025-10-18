@@ -43,6 +43,7 @@ const UserManagement: React.FC = () => {
   const [errors, setErrors] = useState<FormErrors>({});
   const [successMessage, setSuccessMessage] = useState('');
   const [users, setUsers] = useState<User[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState<UserFormData>({
     role: 'Agent',
     username: '',
@@ -225,6 +226,19 @@ const UserManagement: React.FC = () => {
     }
   };
 
+  // Derived: Filtered users by search term (only by ID or Name)
+  const filteredUsers = users.filter((u) => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return true;
+    const fullName = `${u.first_name} ${u.last_name}`.toLowerCase();
+    return (
+      u.employee_id.toString().includes(q) ||
+      u.first_name.toLowerCase().includes(q) ||
+      u.last_name.toLowerCase().includes(q) ||
+      fullName.includes(q)
+    );
+  });
+
   return (
     <div className="user-management">
       <div className="section-header">
@@ -257,7 +271,25 @@ const UserManagement: React.FC = () => {
       <div className="table-container">
         <div className="table-header">
           <h4>System Users</h4>
-          <span className="user-count">{users.length} user(s) found</span>
+          <div className="table-tools">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by ID or name..."
+              className="table-search-input"
+            />
+            {searchTerm && (
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setSearchTerm('')}
+                title="Clear search"
+              >
+                Clear
+              </button>
+            )}
+            <span className="user-count">{filteredUsers.length} / {users.length} user(s)</span>
+          </div>
         </div>
         
         {users.length === 0 ? (
@@ -289,7 +321,7 @@ const UserManagement: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {users.map((user) => (
+                {filteredUsers.map((user) => (
                   <tr key={user.employee_id} className={isDeleting === user.employee_id ? 'deleting' : ''}>
                     <td>
                       <span className="employee-id">{user.employee_id}</span>

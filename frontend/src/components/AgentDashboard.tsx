@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import CustomerRegistration from './CustomerRegistration';
 import AccountCreation from './AccountCreation';
 import FixedDepositCreation from './FixedDepositCreation';
@@ -7,52 +7,76 @@ import TransactionProcessing from './TransactionProcessing';
 import AgentPerformance from './AgentPerformance';
 
 const AgentDashboard: React.FC = () => {
-  const [activeSection, setActiveSection] = useState('register');
+  const [activeSection, setActiveSection] = useState<string>(() => {
+    const saved = localStorage.getItem('agentDashboard.activeSection');
+    return saved || 'performance';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('agentDashboard.activeSection', activeSection);
+  }, [activeSection]);
 
   return (
     <div className="agent-dashboard">
-      <h2>Agent Dashboard</h2>
+      {/* <h2>Agent Dashboard</h2> */}
       
-      <div className="admin-nav">
-        <button 
-          className={activeSection === 'register' ? 'active' : ''}
-          onClick={() => setActiveSection('register')}
-        >
-          👤 Register Customer
-        </button>
-        <button 
-          className={activeSection === 'account' ? 'active' : ''}
-          onClick={() => setActiveSection('account')}
-        >
-          🏦 Savings Account
-        </button>
-        <button 
-          className={activeSection === 'fixed-deposit' ? 'active' : ''}
-          onClick={() => setActiveSection('fixed-deposit')}
-        >
-          💰 Fixed Deposit
-        </button>
-        <button 
-          className={activeSection === 'view-accounts' ? 'active' : ''}
-          onClick={() => setActiveSection('view-accounts')}
-        >
-          🔍 View Account Details
-        </button>
-        <button 
-          className={activeSection === 'transactions' ? 'active' : ''}
-          onClick={() => setActiveSection('transactions')}
-        >
-          💳 Process Transaction
-        </button>
-        <button 
-          className={activeSection === 'performance' ? 'active' : ''}
-          onClick={() => setActiveSection('performance')}
-        >
-          📊 My Performance
-        </button>
-      </div>
+      <nav className="admin-nav agent-nav">
+        <ul>
+          <li>
+            <button 
+              className={activeSection === 'performance' ? 'active' : ''}
+              onClick={() => setActiveSection('performance')}
+            >
+              My Performance
+            </button>
+          </li>
+          
+          <li>
+            <button 
+              className={activeSection === 'register' ? 'active' : ''}
+              onClick={() => setActiveSection('register')}
+            >
+              Register Customer
+            </button>
+          </li>
+          <li>
+            <button 
+              className={activeSection === 'account' ? 'active' : ''}
+              onClick={() => setActiveSection('account')}
+            >
+              Savings Account
+            </button>
+          </li>
+          <li>
+            <button 
+              className={activeSection === 'fixed-deposit' ? 'active' : ''}
+              onClick={() => setActiveSection('fixed-deposit')}
+            >
+              Fixed Deposit
+            </button>
+          </li>
+          <li>
+            <button 
+              className={activeSection === 'view-accounts' ? 'active' : ''}
+              onClick={() => setActiveSection('view-accounts')}
+            >
+              View Account Details
+            </button>
+          </li>
+          <li>
+            <button 
+              className={activeSection === 'transactions' ? 'active' : ''}
+              onClick={() => setActiveSection('transactions')}
+            >
+              Process Transaction
+            </button>
+          </li>
+          
+          
+        </ul>
+      </nav>
 
-      <div className="admin-content">
+      <div className="admin-content agent-content">
         {activeSection === 'register' && <CustomerRegistration />}
         {activeSection === 'account' && <AccountCreation />}
         {activeSection === 'fixed-deposit' && <FixedDepositCreation />}

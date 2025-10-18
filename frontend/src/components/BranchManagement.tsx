@@ -31,6 +31,7 @@ const BranchManagement: React.FC = () => {
   const [errors, setErrors] = useState<FormErrors>({});
   const [successMessage, setSuccessMessage] = useState('');
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState<BranchFormData>({
     name: '',
     contact_no_1: '',
@@ -162,6 +163,16 @@ const BranchManagement: React.FC = () => {
     });
   };
 
+  // Derived: Filtered branches by search term (only by ID or Name)
+  const filteredBranches = branches.filter((b) => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      b.branch_id.toString().includes(q) ||
+      b.name.toLowerCase().includes(q)
+    );
+  });
+
 
 
   return (
@@ -196,7 +207,27 @@ const BranchManagement: React.FC = () => {
       <div className="table-container">
         <div className="table-header">
           <h4>Bank Branches</h4>
-          <span className="branch-count">{branches.length} branch(es) found</span>
+          <div className="table-tools">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by ID or name..."
+              className="table-search-input"
+            />
+            {searchTerm && (
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setSearchTerm('')}
+                title="Clear search"
+              >
+                Clear
+              </button>
+            )}
+            <span className="branch-count">
+              {filteredBranches.length} / {branches.length} branch(es)
+            </span>
+          </div>
         </div>
         
         {branches.length === 0 ? (
@@ -226,7 +257,7 @@ const BranchManagement: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {branches.map((branch) => (
+                {filteredBranches.map((branch) => (
                   <tr key={branch.branch_id} className={isDeleting === branch.branch_id ? 'deleting' : ''}>
                     <td>
                       <span className="branch-id">{branch.branch_id}</span>
