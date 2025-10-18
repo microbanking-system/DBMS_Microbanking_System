@@ -25,6 +25,8 @@ psql -U postgres -h localhost -d newdb -f database/insert-admin.sql
 
 
 # For run demo of interests
+* By default system checks day by day if there is any accounts that need to be credited
+* With below version it checks min by min so its easier to demostrate
 1. select an account and UPDATE account SET open_date = CURRENT_DATE - INTERVAL '31 days' WHERE account_id = account_id;
    if it is a fd account; UPDATE fixeddeposit SET open_date = CURRENT_DATE - INTERVAL '31 days' WHERE fd_id = fd_id;
 2. In env file; INTEREST_CRON_DEBUG=1
