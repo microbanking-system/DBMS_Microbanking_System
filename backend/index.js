@@ -21,6 +21,18 @@ const publicRoutes = require('./routes/public');
 const { verifyToken } = require('./middleware/auth');
 
 // =============================================================================
+// SCHEDULER IMPORTS
+// =============================================================================
+const { startInterestSchedulers } = require('./schedulers/interestScheduler');
+
+// =============================================================================
+// LOGGING UTILITY (Optional - for cleaner console output)
+// =============================================================================
+// Uncomment the lines below to suppress general logs and only show interest logs
+// const { getMorganFormat, setupConsoleOverride } = require('./utils/logger');
+// setupConsoleOverride(); // Suppress non-interest console.log calls
+
+// =============================================================================
 // APPLICATION CONFIGURATION
 // =============================================================================
 const app = express();
@@ -32,7 +44,12 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(morgan('dev'));
+
+// Morgan logging - use 'dev' format or suppress completely
+// To suppress HTTP logs, set SUPPRESS_GENERAL_LOGS=1 in .env
+if (process.env.SUPPRESS_GENERAL_LOGS !== '1') {
+  app.use(morgan('dev'));
+}
 
 // =============================================================================
 // API ROUTES
@@ -107,6 +124,20 @@ app.listen(PORT, async () => {
   } catch (error) {
     console.error('❌ Database connection failed:', error.message);
   }
+
+  // =============================================================================
+  // START INTEREST SCHEDULERS
+  // =============================================================================
+  try {
+    startInterestSchedulers();
+    console.log('✅ Interest schedulers initialized successfully');
+  } catch (error) {
+    console.error('❌ Failed to initialize interest schedulers:', error.message);
+    console.error('   Interest processing will not run automatically.');
+    console.error('   Check that node-cron is installed: npm install node-cron');
+  }
+  
+  console.log('='.repeat(60));
 });
 
 // Graceful shutdown

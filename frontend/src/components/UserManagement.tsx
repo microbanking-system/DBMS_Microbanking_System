@@ -305,14 +305,14 @@ const UserManagement: React.FC = () => {
     <div className="user-management">
       <div className="section-header">
         <div>
-          <h4>User Management</h4>
+          {/* <h4>User Management</h4> */}
           <p className="section-subtitle">Manage system users and permissions</p>
         </div>
         <button 
           className="btn btn-primary"
           onClick={() => setIsAddingUser(true)}
         >
-          <span className="btn-icon">+</span> Add New User
+          <span className="btn-icon-add">+</span> Add New User
         </button>
         <div><br/></div>
       </div>

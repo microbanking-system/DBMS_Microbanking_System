@@ -1079,7 +1079,7 @@ const AccountCreation: React.FC = () => {
                 </button>
                 <button 
                   type="button" 
-                  className="btn btn-primary btn-success"
+                  className="btn-next"
                   onClick={handleNextStep}
                   disabled={isLoading}
                 >

@@ -924,6 +924,7 @@ button, input, select, textarea, label {
 .btn-success {
   background: var(--success-color) !important;
   border-color: var(--success-color) !important;
+  border-radius: 100px;
 }
 
 .btn-success:hover {
@@ -1654,11 +1655,15 @@ button:disabled, .btn:disabled {
 
 .table-header h4 {
   margin: 0;
-  color: var(--primary-color);
+  color: var(--accent-color);
 }
 
 .table-wrapper {
   overflow-x: auto;
+}
+
+.table-wrapper th {
+  color: var(--accent-color);
 }
 
 /* Table tools: search input, counts, actions */
@@ -1989,6 +1994,11 @@ tbody tr:hover {
   position: relative;
   flex: 1;
   min-width: 300px;
+}
+
+.search-section-viewdetails {
+  display: flex;
+  flex-direction: column;
 }
 
 .search-input {
@@ -4200,6 +4210,7 @@ select:disabled {
   display: flex;
   gap: 10px;
   margin-bottom: 15px;
+  
 }
 
 .filter-btn {
@@ -4209,11 +4220,16 @@ select:disabled {
   border-radius: 100px;
   cursor: pointer;
   transition: all 0.3s ease;
+   height: 35px;
+  width: 75px;
 }
 
 .filter-btn.active {
+  padding: 8px 16px;
   background: var(--primary-color);
   color: white;
+  height: 35px;
+  /* width: 50px; */
   /* border-color: var(--accent-color); */
 }
 

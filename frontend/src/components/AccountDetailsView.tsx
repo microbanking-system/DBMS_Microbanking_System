@@ -185,7 +185,7 @@ const AccountDetailsView: React.FC = () => {
 
       <div className="accounts-container">
         {/* Search and Filter Section */}
-        <div className="search-section">
+        <div className="search-section-viewdetails">
           <div className="search-box">
             <input
               type="text"
@@ -219,7 +219,7 @@ const AccountDetailsView: React.FC = () => {
               className={`filter-btn ${activeStatus === 'All' ? 'active' : ''}`}
               onClick={() => setActiveStatus('All')}
             >
-              All Accounts
+              All
             </button>
             <button
               className={`filter-btn ${activeStatus === 'Active' ? 'active' : ''}`}

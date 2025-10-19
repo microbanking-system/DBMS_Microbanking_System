@@ -1,5 +1,63 @@
 # 🧪 API Testing Guide - B-Trust Microbanking System
 
+## ⚠️ **PRIORITY: Interest Scheduler Testing**
+
+### ✅ Quick Fix Applied
+
+**Database import path corrected in `services/interest.js`** - The schedulers are now ready to test!
+
+### 🚀 Testing Steps
+
+#### 1. Restart Backend Server
+
+**Stop current server:**
+- Press `Ctrl+C` in terminal, OR
+- PowerShell: `Stop-Process -Name node -Force`
+
+**Start fresh:**
+```powershell
+cd backend
+npm start
+```
+
+#### 2. Watch Console Output (Runs Every Minute in Debug Mode)
+
+**Expected every 60 seconds:**
+```
+🚀 Starting daily FD interest processing...
+💰 Credited LKR 1250.00 interest for FD 1 to account 101
+✅ Daily FD interest processing completed!
+📊 FDs Processed: 1
+💰 Total Interest Credited: LKR 1,250.00
+```
+
+#### 3. Database Verification
+
+```sql
+-- Recent interest transactions
+SELECT * FROM Transactions 
+WHERE transaction_type = 'Interest' 
+ORDER BY time DESC LIMIT 10;
+
+-- FD interest calculations
+SELECT * FROM fd_interest_calculations 
+ORDER BY credited_at DESC LIMIT 10;
+
+-- Savings interest calculations
+SELECT * FROM savings_interest_calculations 
+ORDER BY credited_at DESC LIMIT 10;
+```
+
+#### 4. Switch to Production Mode (After Testing)
+
+Update `.env`:
+```env
+INTEREST_CRON_DEBUG=0  # Change from 1 to 0
+```
+Restart server. Processing will run at 3:00 AM and 3:30 AM daily.
+
+---
+
 ## 📋 Pre-Testing Setup
 
 ### ✅ Server Status

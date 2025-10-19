@@ -536,7 +536,7 @@ const TransactionProcessing: React.FC = () => {
               <div className="form-actions">
                 <button 
                   type="submit" 
-                  className="btn btn-primary"
+                  className="btn-next"
                   disabled={isLoading}
                 >
                   {isLoading ? (
