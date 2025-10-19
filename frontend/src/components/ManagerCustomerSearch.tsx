@@ -59,19 +59,19 @@ const ManagerCustomerSearch: React.FC = () => {
     <div className="manager-customer-search">
       <div className="section-header">
         <div>
-          <h4>Search Customers</h4>
+          {/* <h4>Search Customers</h4> */}
           <p className="section-subtitle">Search by name or NIC within your branch</p>
         </div>
       </div>
 
       <form className="search-form" onSubmit={onSearch}>
-        <div className="search-box">
+        <div className="search-row">
           <input
             type="text"
             placeholder="Enter name or NIC..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="search-input"
+            // className="search-input"
           />
           <button type="submit" className="btn btn-primary" disabled={isLoading}>
             {isLoading ? 'Searching...' : 'Search'}

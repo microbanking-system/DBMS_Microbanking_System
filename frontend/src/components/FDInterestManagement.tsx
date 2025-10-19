@@ -40,7 +40,12 @@ const FDInterestManagement: React.FC = () => {
       
       <div className="auto-system-info">
         <div className="info-card success">
-          <h5>🔄 Automatic System Status</h5>
+          <h5>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+            </svg>
+            Automatic System Status
+          </h5>
           <p><strong>Schedule:</strong> Daily at 3:00 AM (per-account 30-day cycles)</p>
           <p><strong>Action:</strong> Fully automatic per-account calculation AND crediting</p>
           <p><strong>Status:</strong> <span className="status-active">ACTIVE</span></p>
@@ -68,7 +73,15 @@ const FDInterestManagement: React.FC = () => {
         )}
 
         <div className="recent-periods">
-          <p>Recently Processed Periods</p>
+          <p>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+            Recently Processed Periods
+          </p>
           {summary && summary.recent_periods && summary.recent_periods.length > 0 ? (
             <div className="periods-list">
               {summary.recent_periods.map((period, index) => (
@@ -79,7 +92,16 @@ const FDInterestManagement: React.FC = () => {
               ))}
             </div>
           ) : (
-            <p>No periods processed yet.</p>
+            <p>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+              </svg>
+
+              No periods processed yet.
+            </p>
           )}
         </div>
       </div>

@@ -176,16 +176,16 @@ const AccountDetailsView: React.FC = () => {
 
   return (
     <div className="account-details-view">
-      <div className="section-header">
+      {/* <div className="section-header">
         <div>
           <h4>Account Details & Search</h4>
           <p className="section-subtitle">View and search all savings account details</p>
         </div>
-      </div>
+      </div> */}
 
       <div className="accounts-container">
         {/* Search and Filter Section */}
-        <div className="search-filter-section">
+        <div className="search-section">
           <div className="search-box">
             <input
               type="text"

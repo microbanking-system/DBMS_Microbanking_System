@@ -32,7 +32,8 @@ const TeamManagement: React.FC = () => {
   const [agentPerformance, setAgentPerformance] = useState<{ [key: string]: AgentPerformance }>({});
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'agents' | 'details'>('agents');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   useEffect(() => {
     fetchAgents();
@@ -59,8 +60,32 @@ const TeamManagement: React.FC = () => {
 
   const handleAgentSelect = (agent: Agent) => {
     setSelectedAgent(agent);
-    setActiveTab('details');
+    setShowDetailsModal(true);
   };
+
+  const handleCloseModal = () => {
+    setShowDetailsModal(false);
+    setSelectedAgent(null);
+  };
+
+  // Filter agents by search term (ID, name)
+  const filteredAgents = agents.filter(agent => {
+    const searchLower = searchTerm.toLowerCase().trim();
+    if (!searchLower) return true;
+    
+    // Convert employee_id to string for search
+    const employeeIdStr = String(agent.employee_id).toLowerCase();
+    const firstName = agent.first_name.toLowerCase();
+    const lastName = agent.last_name.toLowerCase();
+    const fullName = `${agent.first_name} ${agent.last_name}`.toLowerCase();
+    
+    return (
+      employeeIdStr.includes(searchLower) ||
+      firstName.includes(searchLower) ||
+      lastName.includes(searchLower) ||
+      fullName.includes(searchLower)
+    );
+  });
 
   const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('en-LK', {
@@ -96,45 +121,77 @@ const TeamManagement: React.FC = () => {
     <div className="team-management">
       <div className="section-header">
         <div>
-          <h4>Team Management</h4>
+          {/* <h4>Team Management</h4> */}
           <p className="section-subtitle">Manage your agents and monitor their performance</p>
         </div>
         <button 
           className="btn btn-secondary"
           onClick={fetchAgents}
+          title="Refresh team data"
         >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+          </svg>
           Refresh
         </button>
       </div>
 
-      <div className="tabs">
-        <button 
-          className={`tab ${activeTab === 'agents' ? 'active' : ''}`}
-          onClick={() => setActiveTab('agents')}
-        >
-          👥 All Agents
-        </button>
-        {selectedAgent && (
-          <button 
-            className={`tab ${activeTab === 'details' ? 'active' : ''}`}
-            onClick={() => setActiveTab('details')}
-          >
-            📋 Agent Details
-          </button>
-        )}
+      <div><br/></div>
+
+      {/* Search Bar */}
+      <div className="search-section">
+        
+        <div className="search-row">
+          
+          {/* <svg className="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg> */}
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Auto search by Agent ID or Name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          {searchTerm && (
+            <button 
+              className="clear-search-btn"
+              onClick={() => setSearchTerm('')}
+              title="Clear search"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+              Clear
+            </button>
+          )}
+        </div>
+        <div className="agent-count">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          {filteredAgents.length} of {agents.length} agents
+        </div>
       </div>
 
-      <div className="tab-content">
-        {activeTab === 'agents' && (
-          <div className="agents-grid">
-            {agents.length === 0 ? (
+      <div className="agents-content">
+        <div className="agents-grid">
+            {filteredAgents.length === 0 ? (
               <div className="no-data">
-                <div className="no-data-icon">👥</div>
-                <h5>No Agents Found</h5>
-                <p>There are no agents assigned to your branch.</p>
+                <svg className="no-data-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                  <circle cx="9" cy="7" r="4"/>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+                <h5>{searchTerm ? 'No Agents Match Your Search' : 'No Agents Found'}</h5>
+                <p>{searchTerm ? `No agents found matching "${searchTerm}"` : 'There are no agents assigned to your branch.'}</p>
               </div>
             ) : (
-              agents.map(agent => {
+              filteredAgents.map(agent => {
                 const performance = agentPerformance[agent.employee_id];
                 return (
                   <div key={agent.employee_id} className="agent-card">
@@ -144,38 +201,46 @@ const TeamManagement: React.FC = () => {
                       </div>
                       <div className="agent-info">
                         <h4>{agent.first_name} {agent.last_name}</h4>
-                        <span className="agent-id">{agent.employee_id}</span>
+                        <span className="agent-id">ID: {agent.employee_id}</span>
                       </div>
                       <span className={`performance-badge ${getPerformanceBadge(performance?.total_transactions || 0)}`}>
                         {performance?.total_transactions || 0} TX
                       </span>
                     </div>
                     
-                    <div className="agent-stats">
-                      <div className="stat">
-                        <span className="stat-label">Transactions</span>
-                        <span className="stat-value">{performance?.total_transactions || 0}</span>
+                    <div className="agent-quick-stats">
+                      <div className="quick-stat">
+                        <svg className="quick-stat-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+                          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+                        </svg>
+                        <div>
+                          <span className="quick-stat-value">{performance?.accounts_created || 0}</span>
+                          <span className="quick-stat-label">Accounts</span>
+                        </div>
                       </div>
-                      <div className="stat">
-                        <span className="stat-label">Volume</span>
-                        <span className="stat-value">{formatCurrency(performance?.total_volume || 0)}</span>
+                      <div className="quick-stat">
+                        <svg className="quick-stat-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                          <circle cx="9" cy="7" r="4"/>
+                          <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                        <div>
+                          <span className="quick-stat-value">{performance?.customers_registered || 0}</span>
+                          <span className="quick-stat-label">Customers</span>
+                        </div>
                       </div>
-                      <div className="stat">
-                        <span className="stat-label">Accounts</span>
-                        <span className="stat-value">{performance?.accounts_created || 0}</span>
-                      </div>
-                    </div>
-
-                    <div className="agent-contact">
-                      <span className="contact-info">📞 {agent.contact_no_1 || 'N/A'}</span>
-                      <span className="contact-info">✉️ {agent.email || 'N/A'}</span>
                     </div>
 
                     <div className="agent-actions">
                       <button 
-                        className="btn btn-primary btn-sm"
+                        className="btn btn-primary btn-sm btn-block"
                         onClick={() => handleAgentSelect(agent)}
                       >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                          <circle cx="12" cy="12" r="3"/>
+                        </svg>
                         View Details
                       </button>
                     </div>
@@ -183,29 +248,33 @@ const TeamManagement: React.FC = () => {
                 );
               })
             )}
-          </div>
-        )}
+        </div>
 
-        {activeTab === 'details' && selectedAgent && (
-          <AgentDetails 
-            agent={selectedAgent} 
-            performance={agentPerformance[selectedAgent.employee_id]} 
-            onBack={() => setActiveTab('agents')}
-          />
+        {/* Agent Details Modal */}
+        {showDetailsModal && selectedAgent && (
+          <div className="modal-overlay" onClick={handleCloseModal}>
+            <div className="modal-content large-modal agent-details-modal" onClick={(e) => e.stopPropagation()}>
+              <AgentDetailsModal 
+                agent={selectedAgent} 
+                performance={agentPerformance[selectedAgent.employee_id]} 
+                onClose={handleCloseModal}
+              />
+            </div>
+          </div>
         )}
       </div>
     </div>
   );
 };
 
-// Agent Details Component
-interface AgentDetailsProps {
+// Agent Details Modal Component
+interface AgentDetailsModalProps {
   agent: Agent;
   performance?: AgentPerformance;
-  onBack: () => void;
+  onClose: () => void;
 }
 
-const AgentDetails: React.FC<AgentDetailsProps> = ({ agent, performance, onBack }) => {
+const AgentDetailsModal: React.FC<AgentDetailsModalProps> = ({ agent, performance, onClose }) => {
   const [agentTransactions, setAgentTransactions] = useState<any[]>([]);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
 
@@ -256,15 +325,21 @@ const AgentDetails: React.FC<AgentDetailsProps> = ({ agent, performance, onBack 
   };
 
   return (
-    <div className="agent-details">
-      <div className="details-header">
-        <button className="btn btn-secondary" onClick={onBack}>
-          ← Back to Team
+    <>
+      <div className="modal-header">
+        <div className="details-title">
+          <h4>{agent.first_name} {agent.last_name}</h4>
+          <span className="details-subtitle">Employee ID: {agent.employee_id}</span>
+        </div>
+        <button className="close-btn" onClick={onClose} title="Close">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
         </button>
-        <h4>Agent Details: {agent.first_name} {agent.last_name}</h4>
       </div>
 
-      <div className="details-content">
+      <div className="details-content agent-modal-content">
         <div className="details-grid">
           <div className="detail-section">
             <h5>Personal Information</h5>
@@ -390,7 +465,7 @@ const AgentDetails: React.FC<AgentDetailsProps> = ({ agent, performance, onBack 
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

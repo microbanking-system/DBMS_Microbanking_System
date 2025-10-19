@@ -80,6 +80,10 @@ const FixedDepositCreation: React.FC = () => {
   const [customerSearchResults, setCustomerSearchResults] = useState<Customer[]>([]);
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
   
+  // Stepper state
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  const [createdFdId, setCreatedFdId] = useState<number | null>(null);
+  
   const [formData, setFormData] = useState<FdFormData>({
     customer_id: 0,
     account_id: 0,
@@ -87,6 +91,20 @@ const FixedDepositCreation: React.FC = () => {
     principal_amount: 0,
     auto_renewal_status: 'False'
   });
+
+  // Define stepper steps
+  const steps = [
+    { number: 1, label: 'info 01' },
+    { number: 2, label: 'info 02' },
+    { number: 3, label: 'Done' }
+  ];
+
+  // Check icon for completed steps
+  const CheckIcon = () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 13l4 4L19 7"></path>
+    </svg>
+  );
 
   // Fetch data on component mount
   useEffect(() => {
@@ -134,7 +152,7 @@ const FixedDepositCreation: React.FC = () => {
         axios.get('/api/agent/customers', {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        axios.get('/api/fd-plans', {
+        axios.get('/api/public/fd-plans', {
           headers: { Authorization: `Bearer ${token}` }
         }),
         axios.get('/api/agent/accounts-with-fd', {
@@ -142,9 +160,9 @@ const FixedDepositCreation: React.FC = () => {
         })
       ]);
 
-      setCustomers(customersRes.data.customers);
-      setFdPlans(plansRes.data.fd_plans);
-      setAccounts(accountsRes.data.accounts);
+      setCustomers(customersRes.data.customers || []);
+      setFdPlans(plansRes.data.fd_plans || plansRes.data || []);
+      setAccounts(accountsRes.data.accounts || []);
     } catch (error: any) {
       console.error('Failed to fetch data:', error);
       alert('Failed to load required data');
@@ -293,7 +311,8 @@ const FixedDepositCreation: React.FC = () => {
     });
   };
 
-  const validateForm = (): boolean => {
+  // Step 1 validation - Customer & Account Selection
+  const validateStep1 = (): boolean => {
     const newErrors: FormErrors = {};
     
     if (!formData.customer_id) {
@@ -314,6 +333,14 @@ const FixedDepositCreation: React.FC = () => {
       }
     }
     
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Step 2 validation - FD Details
+  const validateStep2 = (): boolean => {
+    const newErrors: FormErrors = {};
+    
     if (!formData.fd_plan_id) {
       newErrors.fd_plan_id = 'Please select a FD plan';
     }
@@ -324,7 +351,7 @@ const FixedDepositCreation: React.FC = () => {
       // Get the minimum balance from the selected account's saving plan
       const savingPlan = accounts.find(acc => acc.account_id === formData.account_id);
       if (savingPlan) {
-        const minBalance = savingPlan.min_balance || 0; // Use the actual min_balance from savingplan table
+        const minBalance = savingPlan.min_balance || 0;
         const availableForFD = selectedAccount.balance - minBalance;
         
         if (formData.principal_amount > availableForFD) {
@@ -335,6 +362,10 @@ const FixedDepositCreation: React.FC = () => {
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const validateForm = (): boolean => {
+    return validateStep1() && validateStep2();
   };
 
   const calculateMaturityDate = (planOption: string): Date => {
@@ -377,8 +408,24 @@ const FixedDepositCreation: React.FC = () => {
     return m_principal;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Step navigation handlers
+  const handleNextStep = async () => {
+    if (currentStep === 1 && validateStep1()) {
+      setCurrentStep(2);
+    } else if (currentStep === 2 && validateStep2()) {
+      // Create FD when moving from step 2 to step 3
+      await createFixedDeposit();
+    }
+  };
+
+  const handlePrevStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep((prev) => (prev - 1) as 1 | 2 | 3);
+      setErrors({});
+    }
+  };
+
+  const createFixedDeposit = async () => {
     if (!validateForm()) return;
     
     setIsLoading(true);
@@ -396,29 +443,46 @@ const FixedDepositCreation: React.FC = () => {
         }
       });
       
-  setSuccessMessage(`Fixed Deposit created successfully! FD Account: ${response.data.fd_id}`);
-      setFormData({
-        customer_id: 0,
-        account_id: 0,
-        fd_plan_id: 0,
-        principal_amount: 0,
-        auto_renewal_status: 'False'
-      });
-      setSelectedCustomer(null);
-      setSelectedPlan(null);
-      setSelectedAccount(null);
-      setCustomerSearchTerm('');
-      setCustomerSearchResults([]);
-      setShowCustomerSearch(false);
-      setErrors({});
+      setCreatedFdId(response.data.fd_id);
+      setSuccessMessage(`Fixed Deposit created successfully! FD Account: ${response.data.fd_id}`);
+      setCurrentStep(3);
       
       // Refresh accounts data to update balances
       fetchData();
+      
+      // Scroll to top to show success message
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
       alert(error.response?.data?.message || 'Failed to create fixed deposit');
+      setCurrentStep(2); // Stay on step 2 if error
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // This is no longer needed as FD is created in step 2
+  };
+
+  const resetForm = () => {
+    setFormData({
+      customer_id: 0,
+      account_id: 0,
+      fd_plan_id: 0,
+      principal_amount: 0,
+      auto_renewal_status: 'False'
+    });
+    setSelectedCustomer(null);
+    setSelectedPlan(null);
+    setSelectedAccount(null);
+    setCustomerSearchTerm('');
+    setCustomerSearchResults([]);
+    setShowCustomerSearch(false);
+    setErrors({});
+    setCurrentStep(1);
+    setCreatedFdId(null);
+    setSuccessMessage('');
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -510,13 +574,13 @@ const FixedDepositCreation: React.FC = () => {
     <div className="fixed-deposit-creation">
       <div className="section-header">
         <div>
-          <h4>Fixed Deposit Management</h4>
-          <p className="section-subtitle">Create and manage fixed deposit accounts</p>
+          {/* <h4>Fixed Deposit Management</h4>
+          <p className="section-subtitle">Create and manage fixed deposit accounts</p> */}
         </div>
       </div>
 
       {/* Tab Navigation */}
-      <div className="tab-navigation">
+      <div className="tabs">
         <button 
           className={`tab-btn ${activeTab === 'create' ? 'active' : ''}`}
           onClick={() => setActiveTab('create')}
@@ -545,11 +609,53 @@ const FixedDepositCreation: React.FC = () => {
       )}
 
       {activeTab === 'create' ? (
-        <div className="account-form-container">
-          <form className="account-form" onSubmit={handleSubmit}>
-            <div className="form-section">
-              <h4>Customer & Account Selection</h4>
-              <div className="form-row">
+        <div className="wizard-container">
+          {/* Form Header with Icon */}
+          <div className="wizard-header">
+            <div className="wizard-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h1>Create Fixed Deposit</h1>
+            <p>Open a new fixed deposit account for customers</p>
+          </div>
+
+          {/* Stepper */}
+          <div className="stepper">
+            <div className="stepper-line-container">
+              {steps.map((step, index) => (
+                <React.Fragment key={step.number}>
+                  <div className="step-item">
+                    <div className={`step-circle ${
+                      currentStep > step.number || (currentStep === 3 && step.number === 3) ? 'step-completed' :
+                      currentStep === step.number ? 'step-active' : 'step-inactive'
+                    }`}>
+                      {currentStep > step.number || (currentStep === 3 && step.number === 3) ? <CheckIcon /> : step.number}
+                    </div>
+                    <span className={`step-label ${
+                      currentStep >= step.number ? 'step-label-active' : 'step-label-inactive'
+                    }`}>
+                      {step.label}
+                    </span>
+                  </div>
+                  {index < steps.length - 1 && (
+                    <div className={`step-line ${
+                      currentStep > step.number ? 'step-line-completed' : 'step-line-incomplete'
+                    }`} />
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+
+          <div className="wizard-form-container">
+            <form onSubmit={handleSubmit}>
+              {/* Step 1: Customer & Account Selection */}
+              {currentStep === 1 && (
+              <div className="form-step">
+                <h2 className="step-title">Customer & Account Selection</h2>
+              <div className="form-grid">
                 <div className="form-group">
                   <label>Select Customer *</label>
                   
@@ -694,11 +800,41 @@ const FixedDepositCreation: React.FC = () => {
                   <p><strong>Age:</strong> {calculateAge(selectedCustomer.date_of_birth)} years</p>
                 </div>
               )}
-            </div>
 
-            <div className="form-section">
-              <h4>Fixed Deposit Details</h4>
-              <div className="form-row">
+              {/* Step 1 Navigation */}
+              <div className="form-actions stepper-actions">
+                <button 
+                  type="button" 
+                  className="btn-back"
+                  disabled={currentStep === 1}
+                  // style={{ visibility: 'hidden' }}
+                >
+                  Back
+                </button>
+                <button 
+                  type="button" 
+                  className="btn-danger"
+                  onClick={resetForm}
+                  disabled={currentStep === 1}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button" 
+                  className="btn-next"
+                  onClick={handleNextStep}
+                >
+                  Next
+                </button>
+              </div>
+              </div>
+              )}
+
+              {/* Step 2: Fixed Deposit Details */}
+              {currentStep === 2 && (
+              <div className="form-step">
+                <h2 className="step-title">Fixed Deposit Details</h2>
+              <div className="form-grid">
                 <div className="form-group">
                   <label>FD Plan *</label>
                   <select
@@ -787,47 +923,175 @@ const FixedDepositCreation: React.FC = () => {
                   </div>
                 </div>
               )}
-            </div>
 
-            <div className="form-actions">
-              <button 
-                type="button" 
-                className="btn btn-secondary"
-                onClick={() => {
-                  setFormData({
-                    customer_id: 0,
-                    account_id: 0,
-                    fd_plan_id: 0,
-                    principal_amount: 0,
-                    auto_renewal_status: 'False'
-                  });
-                  setSelectedCustomer(null);
-                  setSelectedPlan(null);
-                  setSelectedAccount(null);
-                  setCustomerSearchTerm('');
-                  setCustomerSearchResults([]);
-                  setShowCustomerSearch(false);
-                  setErrors({});
-                }}
-              >
-                Clear Form
-              </button>
-              <button 
-                type="submit" 
-                className="btn btn-primary"
-                disabled={isLoading || getEligibleAccounts().length === 0}
-              >
-                {isLoading ? (
-                  <>
-                    <span className="loading-spinner"></span>
-                    Creating Fixed Deposit...
-                  </>
-                ) : (
-                  'Create Fixed Deposit'
+              {/* Step 2 Navigation */}
+              <div className="form-actions stepper-actions">
+                <button 
+                  type="button" 
+                  className="btn-back"
+                  onClick={handlePrevStep}
+                  disabled={isLoading}
+                >
+                  Back
+                </button>
+                <button 
+                  type="button" 
+                  className="btn-danger"
+                  onClick={resetForm}
+                  disabled={isLoading}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button" 
+                  className="btn-next btn-success"
+                  onClick={handleNextStep}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <span className="loading-spinner"></span>
+                      Creating...
+                    </>
+                  ) : (
+                    'Create Fixed Deposit'
+                  )}
+                </button>
+              </div>
+              </div>
+              )}
+
+              {/* Step 3: FD Created Successfully */}
+              {currentStep === 3 && (
+              <div className="form-step">
+                <div className="success-container">
+                  <div className="success-icon-large">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                  </div>
+                  <h2 className="step-title" style={{textAlign: 'center', color: 'var(--success-color)'}}>Fixed Deposit Created Successfully!</h2>
+                  <p className="section-subtitle" style={{textAlign: 'center'}}>The new fixed deposit account has been opened</p>
+                </div>
+
+              <div className="confirmation-summary">
+                {/* FD Account Number - Highlighted */}
+                {createdFdId && (
+                  <div className="confirmation-section" style={{background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', padding: 'var(--spacing-lg)', borderRadius: 'var(--border-radius-lg)', marginBottom: 'var(--spacing-lg)'}}>
+                    <div className="detail-row" style={{justifyContent: 'center', fontSize: '1.2rem'}}>
+                      <span className="detail-label" style={{fontSize: '1.1rem'}}>FD Account Number:</span>
+                      <span className="detail-value"><strong style={{color: 'var(--primary-color)', fontSize: '1.3rem'}}>{createdFdId}</strong></span>
+                    </div>
+                  </div>
                 )}
-              </button>
-            </div>
-          </form>
+
+                {/* Customer Information */}
+                <div className="confirmation-section">
+                  <h5>Account Holder Information</h5>
+                  {selectedCustomer && (
+                    <div className="confirmation-details">
+                      <div className="detail-row">
+                        <span className="detail-label">Customer Name:</span>
+                        <span className="detail-value"><strong>{selectedCustomer.first_name} {selectedCustomer.last_name}</strong></span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Customer ID:</span>
+                        <span className="detail-value">{selectedCustomer.customer_id}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">NIC:</span>
+                        <span className="detail-value">{selectedCustomer.nic}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Age:</span>
+                        <span className="detail-value">{calculateAge(selectedCustomer.date_of_birth)} years</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Linked Account */}
+                {selectedAccount && (
+                  <div className="confirmation-section">
+                    <h5>Linked Savings Account</h5>
+                    <div className="confirmation-details">
+                      <div className="detail-row">
+                        <span className="detail-label">Account Number:</span>
+                        <span className="detail-value"><strong>{formData.account_id}</strong></span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Account Type:</span>
+                        <span className="detail-value">{selectedAccount.plan_type}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* FD Details */}
+                {selectedPlan && (
+                  <div className="confirmation-section">
+                    <h5>Fixed Deposit Details</h5>
+                    <div className="confirmation-details">
+                      <div className="detail-row">
+                        <span className="detail-label">Plan Duration:</span>
+                        <span className="detail-value"><strong>{selectedPlan.fd_options}</strong></span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Interest Rate:</span>
+                        <span className="detail-value">{selectedPlan.interest}% per annum</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Principal Amount:</span>
+                        <span className="detail-value"><strong className="text-success">LKR {formData.principal_amount.toLocaleString()}</strong></span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Maturity Date:</span>
+                        <span className="detail-value">{calculateMaturityDate(selectedPlan.fd_options).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Expected Maturity Amount:</span>
+                        <span className="detail-value"><strong className="text-success">LKR {calculateMaturityAmount(formData.principal_amount, selectedPlan.interest, selectedPlan.fd_options).toLocaleString()}</strong></span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Auto Renewal:</span>
+                        <span className="detail-value">{formData.auto_renewal_status === 'True' ? 'Yes' : 'No'}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Status */}
+                <div className="confirmation-section">
+                  <h5>FD Status</h5>
+                  <div className="confirmation-details">
+                    <div className="detail-row">
+                      <span className="detail-label">Status:</span>
+                      <span className="detail-value"><span className="badge badge-success">Active</span></span>
+                    </div>
+                    <div className="detail-row">
+                      <span className="detail-label">Created Date:</span>
+                      <span className="detail-value">{new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 3 Navigation - Only "Create Another FD" button */}
+              <div className="form-actions stepper-actions" style={{justifyContent: 'center'}}>
+                <button 
+                  type="button" 
+                  className="btn btn-primary btn-lg"
+                  onClick={resetForm}
+                  style={{minWidth: '200px'}}
+                >
+                  Create Another Fixed Deposit
+                </button>
+              </div>
+              </div>
+              )}
+            </form>
+          </div>
         </div>
       ) : (
         

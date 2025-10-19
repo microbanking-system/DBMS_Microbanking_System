@@ -149,8 +149,25 @@ const CustomerAccounts: React.FC = () => {
   };
 
   const getSortIcon = (column: string) => {
-    if (sortBy !== column) return '↕️';
-    return sortOrder === 'asc' ? '↑' : '↓';
+    if (sortBy !== column) {
+      return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display: 'inline', marginLeft: '4px', opacity: 0.4}}>
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <polyline points="19 12 12 19 5 12"></polyline>
+        </svg>
+      );
+    }
+    return sortOrder === 'asc' ? (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display: 'inline', marginLeft: '4px'}}>
+        <line x1="12" y1="19" x2="12" y2="5"></line>
+        <polyline points="5 12 12 5 19 12"></polyline>
+      </svg>
+    ) : (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display: 'inline', marginLeft: '4px'}}>
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <polyline points="19 12 12 19 5 12"></polyline>
+      </svg>
+    );
   };
 
   if (isLoading) {
@@ -164,8 +181,8 @@ const CustomerAccounts: React.FC = () => {
 
   return (
     <div className="customer-accounts">
-      <div className="section-header">
-        <div>
+      <div className="reports-header">
+        <div className="header-title">
           <h4>Customer Accounts</h4>
           <p className="section-subtitle">Manage and view all customer accounts in your branch</p>
         </div>
@@ -173,7 +190,12 @@ const CustomerAccounts: React.FC = () => {
           className="btn btn-primary"
           onClick={fetchAccounts}
         >
-          Refresh Data
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+          Refresh
         </button>
       </div>
 
@@ -181,20 +203,31 @@ const CustomerAccounts: React.FC = () => {
       {summary && (
         <div className="summary-cards">
           <div className="summary-card">
-            <div className="summary-icon">🏦</div>
-            <div className="summary-content">
+            <div className="summary-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="3" y1="9" x2="21" y2="9"></line>
+                <line x1="9" y1="21" x2="9" y2="9"></line>
+              </svg>
+            </div>
+            <div className="summary-info">
               <h4>Total Accounts</h4>
               <div className="summary-value">{summary.total_accounts}</div>
               <div className="summary-detail">
-                <span className="active">{summary.active_accounts} Active</span>
-                <span className="inactive">{summary.closed_accounts} Closed</span>
+                <span className="active">{summary.active_accounts} Active</span> · 
+                <span className="inactive"> {summary.closed_accounts} Closed</span>
               </div>
             </div>
           </div>
           
           <div className="summary-card">
-            <div className="summary-icon">💰</div>
-            <div className="summary-content">
+            <div className="summary-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="1" x2="12" y2="23"></line>
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+              </svg>
+            </div>
+            <div className="summary-info">
               <h4>Total Balance</h4>
               <div className="summary-value">{formatCurrency(summary.total_balance)}</div>
               <div className="summary-detail">
@@ -204,12 +237,19 @@ const CustomerAccounts: React.FC = () => {
           </div>
           
           <div className="summary-card">
-            <div className="summary-icon">👥</div>
-            <div className="summary-content">
-              <h4>Customer Demographics</h4>
-              <div className="summary-value">{accounts.length} Accounts</div>
+            <div className="summary-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+            </div>
+            <div className="summary-info">
+              <h4>Unique Customers</h4>
+              <div className="summary-value">{new Set(accounts.map(acc => acc.customer_id)).size}</div>
               <div className="summary-detail">
-                {new Set(accounts.map(acc => acc.customer_id)).size} Unique Customers
+                {accounts.length} Total Accounts
               </div>
             </div>
           </div>
@@ -219,6 +259,10 @@ const CustomerAccounts: React.FC = () => {
       {/* Filters and Search */}
       <div className="filters-section">
         <div className="search-box">
+          <svg className="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.35-4.35"></path>
+          </svg>
           <input
             type="text"
             placeholder="Search by account ID, customer name, or NIC..."
@@ -226,7 +270,14 @@ const CustomerAccounts: React.FC = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="search-input"
           />
-          <span className="search-icon">🔍</span>
+          {searchTerm && (
+            <button className="clear-search-btn" onClick={() => setSearchTerm('')}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          )}
         </div>
         
         <div className="filter-controls">
@@ -254,8 +305,8 @@ const CustomerAccounts: React.FC = () => {
       </div>
 
       {/* Accounts Table */}
-      <div className="table-container">
-        <div className="table-header">
+      <div className="accounts-list">
+        <div className="list-header">
           <h4>Account Details</h4>
           <span className="results-count">
             {filteredAccounts.length} of {accounts.length} accounts
@@ -264,7 +315,11 @@ const CustomerAccounts: React.FC = () => {
 
         {filteredAccounts.length === 0 ? (
           <div className="no-data">
-            <div className="no-data-icon">🏦</div>
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="3" y1="9" x2="21" y2="9"></line>
+              <line x1="9" y1="21" x2="9" y2="9"></line>
+            </svg>
             <h5>No Accounts Found</h5>
             <p>No accounts match your search criteria.</p>
           </div>
@@ -363,17 +418,25 @@ const CustomerAccounts: React.FC = () => {
                     <td>
                       <div className="contact-info">
                         <div className="contact-item">
-                          <span className="contact-icon">📞</span>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                          </svg>
                           {account.contact_no_1}
                         </div>
                         <div className="contact-item">
-                          <span className="contact-icon">✉️</span>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                            <polyline points="22,6 12,13 2,6"></polyline>
+                          </svg>
                           <span className="email" title={account.email}>
                             {account.email.length > 20 ? account.email.substring(0, 20) + '...' : account.email}
                           </span>
                         </div>
                         <div className="contact-item">
-                          <span className="contact-icon">🏠</span>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                          </svg>
                           <span className="address" title={account.address}>
                             {account.address.length > 25 ? account.address.substring(0, 25) + '...' : account.address}
                           </span>

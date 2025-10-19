@@ -109,12 +109,12 @@ const TransactionProcessing: React.FC = () => {
   const fetchSavingPlans = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('/api/saving-plans', {
+      const response = await axios.get('/api/public/saving-plans', {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
-      setSavingPlans(response.data.saving_plans);
+      setSavingPlans(response.data.saving_plans || response.data || []);
     } catch (error: any) {
       console.error('Failed to fetch saving plans:', error);
     }
@@ -327,12 +327,12 @@ const TransactionProcessing: React.FC = () => {
 
   return (
     <div className="transaction-processing">
-      <div className="section-header">
+      {/* <div className="section-header">
         <div>
           <h4>Transaction Processing</h4>
-          <p className="section-subtitle">Process deposits, withdrawals, and view transaction history</p>
+          <p className="section-subtitle">Process deposits, withdrawals and view transaction history</p>
         </div>
-      </div>
+      </div> */}
 
       {successMessage && (
         <div className="success-message">

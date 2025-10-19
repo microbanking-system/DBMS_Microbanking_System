@@ -55,8 +55,60 @@ const Reports: React.FC = () => {
     startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
   });
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Date preset handlers
+  const applyDatePreset = (preset: string) => {
+    const today = new Date();
+    let startDate = new Date();
+    let endDate = new Date();
+
+    switch (preset) {
+      case 'today':
+        startDate = new Date(today);
+        endDate = new Date(today);
+        break;
+      case 'yesterday':
+        startDate = new Date(today.setDate(today.getDate() - 1));
+        endDate = new Date(startDate);
+        break;
+      case 'last7days':
+        startDate = new Date(today.setDate(today.getDate() - 7));
+        endDate = new Date();
+        break;
+      case 'last30days':
+        startDate = new Date(today.setDate(today.getDate() - 30));
+        endDate = new Date();
+        break;
+      case 'thisMonth':
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        endDate = new Date();
+        break;
+      case 'lastMonth':
+        startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+        break;
+      case 'thisQuarter':
+        const quarterStart = Math.floor(today.getMonth() / 3) * 3;
+        startDate = new Date(today.getFullYear(), quarterStart, 1);
+        endDate = new Date();
+        break;
+      case 'thisYear':
+        startDate = new Date(today.getFullYear(), 0, 1);
+        endDate = new Date();
+        break;
+      default:
+        return;
+    }
+
+    setDateRange({
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0]
+    });
+    setShowDatePicker(false);
+  };
 
   // Report data states
   const [agentTransactions, setAgentTransactions] = useState<AgentTransactionReport[]>([]);
@@ -67,9 +119,27 @@ const Reports: React.FC = () => {
 
   // Ref for the report content
   const reportContentRef = useRef<HTMLDivElement>(null);
+  const datePickerRef = useRef<HTMLDivElement>(null);
+
+  // Close date picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
+        setShowDatePicker(false);
+      }
+    };
+
+    if (showDatePicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDatePicker]);
 
   // Helper - robust parse to number
-  const parseNumber = (value: any): number => {
+  const parseNumber = useCallback((value: any): number => {
     if (value === null || value === undefined || value === '') return 0;
     if (typeof value === 'number') return isFinite(value) ? value : 0;
     if (typeof value === 'string') {
@@ -80,15 +150,15 @@ const Reports: React.FC = () => {
     // Fallback
     const n = Number(value);
     return isNaN(n) ? 0 : n;
-  };
+  }, []);
 
   // Format currency
-  const formatCurrency = (value: number): string => {
+  const formatCurrency = useCallback((value: number): string => {
     return `LKR ${value.toLocaleString('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     })}`;
-  };
+  }, []);
 
   // Date helpers
   const daysUntil = (dateStr?: string | null): number | null => {
@@ -109,13 +179,40 @@ const Reports: React.FC = () => {
   };
 
   // Generic total getter
-  const getTotal = (data: any[], field: string): number => {
+  const getTotal = useCallback((data: any[], field: string): number => {
     return data.reduce((sum, item) => {
       return sum + parseNumber(item?.[field]);
     }, 0);
-  };
+  }, [parseNumber]);
 
-  // Loaders memoized
+  // Memoized totals for each report to avoid recalculation on each render
+  const totals = useMemo(() => ({
+    agent: {
+      count: agentTransactions.length,
+      totalTransactions: getTotal(agentTransactions, 'total_transactions'),
+      totalDeposits: getTotal(agentTransactions, 'total_deposits'),
+      totalWithdrawals: getTotal(agentTransactions, 'total_withdrawals'),
+    },
+    accounts: {
+      count: accountSummaries.length,
+      totalDeposits: getTotal(accountSummaries, 'total_deposits'),
+      totalWithdrawals: getTotal(accountSummaries, 'total_withdrawals'),
+    },
+    fds: {
+      count: activeFDs.length,
+      totalValue: getTotal(activeFDs, 'fd_balance'),
+    },
+    interest: {
+      totalInterest: getTotal(interestSummary, 'total_interest'),
+      totalAccounts: getTotal(interestSummary, 'account_count'),
+    },
+    customers: {
+      count: customerActivity.length,
+      totalDeposits: getTotal(customerActivity, 'total_deposits'),
+      totalWithdrawals: getTotal(customerActivity, 'total_withdrawals'),
+      netFlow: getTotal(customerActivity, 'net_balance'),
+    }
+  }), [agentTransactions, accountSummaries, activeFDs, interestSummary, customerActivity, getTotal]);
   const loadAgentTransactions = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -131,8 +228,11 @@ const Reports: React.FC = () => {
         timeout: 30000
       });
       
-      if (response.data && Array.isArray(response.data)) {
-        setAgentTransactions(response.data);
+      // Extract data from the response wrapper
+      const data = response.data?.data || response.data;
+      
+      if (data && Array.isArray(data)) {
+        setAgentTransactions(data);
       } else {
         setAgentTransactions([]);
         console.warn('Unexpected response format:', response.data);
@@ -161,8 +261,11 @@ const Reports: React.FC = () => {
         timeout: 30000
       });
       
-      if (response.data && Array.isArray(response.data)) {
-        setAccountSummaries(response.data);
+      // Extract data from the response wrapper
+      const data = response.data?.data || response.data;
+      
+      if (data && Array.isArray(data)) {
+        setAccountSummaries(data);
       } else {
         setAccountSummaries([]);
         console.warn('Unexpected response format:', response.data);
@@ -190,8 +293,11 @@ const Reports: React.FC = () => {
         timeout: 30000
       });
       
-      if (response.data && Array.isArray(response.data)) {
-        setActiveFDs(response.data);
+      // Extract data from the response wrapper
+      const data = response.data?.data || response.data;
+      
+      if (data && Array.isArray(data)) {
+        setActiveFDs(data);
       } else {
         setActiveFDs([]);
         console.warn('Unexpected response format:', response.data);
@@ -223,13 +329,18 @@ const Reports: React.FC = () => {
         timeout: 30000
       });
       
-      if (response.data && Array.isArray(response.data)) {
-        setInterestSummary(response.data);
+      // Extract data from the response wrapper
+      const data = response.data?.data || response.data;
+      
+      if (data && Array.isArray(data)) {
+        setInterestSummary(data);
+      } else if (response.data?.status === 'success' && Array.isArray(response.data?.data)) {
+        setInterestSummary(response.data.data);
       } else {
         setInterestSummary([]);
         console.warn('Unexpected response format:', response.data);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load interest summary report', error);
       setError('Failed to load interest summary report. Please try again.');
       setInterestSummary([]);
@@ -253,13 +364,18 @@ const Reports: React.FC = () => {
         timeout: 30000
       });
       
-      if (response.data && Array.isArray(response.data)) {
-        setCustomerActivity(response.data);
+      // Extract data from the response wrapper
+      const data = response.data?.data || response.data;
+      
+      if (data && Array.isArray(data)) {
+        setCustomerActivity(data);
+      } else if (response.data?.status === 'success' && Array.isArray(response.data?.data)) {
+        setCustomerActivity(response.data.data);
       } else {
         setCustomerActivity([]);
         console.warn('Unexpected response format:', response.data);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load customer activity report', error);
       setError('Failed to load customer activity report. Please try again.');
       setCustomerActivity([]);
@@ -505,57 +621,81 @@ const Reports: React.FC = () => {
     }
   };
 
-  // Memoized totals for each report to avoid recalculation on each render
-  const totals = useMemo(() => ({
-    agent: {
-      count: agentTransactions.length,
-      totalTransactions: getTotal(agentTransactions, 'total_transactions'),
-      totalDeposits: getTotal(agentTransactions, 'total_deposits'),
-      totalWithdrawals: getTotal(agentTransactions, 'total_withdrawals'),
-    },
-    accounts: {
-      count: accountSummaries.length,
-      totalDeposits: getTotal(accountSummaries, 'total_deposits'),
-      totalWithdrawals: getTotal(accountSummaries, 'total_withdrawals'),
-    },
-    fds: {
-      count: activeFDs.length,
-      totalValue: getTotal(activeFDs, 'fd_balance'),
-    },
-    interest: {
-      totalInterest: getTotal(interestSummary, 'total_interest'),
-      totalAccounts: getTotal(interestSummary, 'account_count'),
-    },
-    customers: {
-      count: customerActivity.length,
-      totalDeposits: getTotal(customerActivity, 'total_deposits'),
-      totalWithdrawals: getTotal(customerActivity, 'total_withdrawals'),
-      netFlow: getTotal(customerActivity, 'net_balance'),
-    }
-  }), [agentTransactions, accountSummaries, activeFDs, interestSummary, customerActivity, getTotal]);
-
   return (
     <div className="reports-section">
       <div className="reports-header">
         <h4>Management Reports</h4>
         <div className="report-controls">
-          <div className="date-range">
-            <label>Date Range:</label>
-            <input
-              type="date"
-              value={dateRange.startDate}
-              onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
-            />
-            <span>to</span>
-            <input
-              type="date"
-              value={dateRange.endDate}
-              onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
-            />
+          <div className="date-range-container" ref={datePickerRef}>
+            <button 
+              className="date-range-toggle"
+              onClick={() => setShowDatePicker(!showDatePicker)}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+              </svg>
+              <span className="date-display">
+                {new Date(dateRange.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - {new Date(dateRange.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+
+            {showDatePicker && (
+              <div className="date-picker-dropdown">
+                <div className="date-presets">
+                  <h5>Quick Select</h5>
+                  <button onClick={() => applyDatePreset('today')}>Today</button>
+                  <button onClick={() => applyDatePreset('yesterday')}>Yesterday</button>
+                  <button onClick={() => applyDatePreset('last7days')}>Last 7 Days</button>
+                  <button onClick={() => applyDatePreset('last30days')}>Last 30 Days</button>
+                  <button onClick={() => applyDatePreset('thisMonth')}>This Month</button>
+                  <button onClick={() => applyDatePreset('lastMonth')}>Last Month</button>
+                  <button onClick={() => applyDatePreset('thisQuarter')}>This Quarter</button>
+                  <button onClick={() => applyDatePreset('thisYear')}>This Year</button>
+                </div>
+                <div className="date-custom">
+                  <h5>Custom Range</h5>
+                  <div className="date-inputs">
+                    <div className="input-group">
+                      <label>Start Date</label>
+                      <input
+                        type="date"
+                        value={dateRange.startDate}
+                        onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
+                      />
+                    </div>
+                    <div className="input-group">
+                      <label>End Date</label>
+                      <input
+                        type="date"
+                        value={dateRange.endDate}
+                        onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <button 
+                    className="apply-custom-date"
+                    onClick={() => setShowDatePicker(false)}
+                  >
+                    Apply Custom Range
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           <div className="report-actions">
             <button onClick={handlePrint} className="btn btn-primary" disabled={loading} aria-disabled={loading}>
-              🖨️ Print Report
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                <rect x="6" y="14" width="12" height="8"></rect>
+              </svg>
+              Print Report
             </button>
           </div>
         </div>
@@ -580,35 +720,61 @@ const Reports: React.FC = () => {
           onClick={() => setActiveReport('agent-transactions')}
           disabled={loading}
         >
-          Agent Transactions
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="8.5" cy="7" r="4"/>
+            <polyline points="17 11 19 13 23 9"/>
+          </svg>
+          <span className="button-label">Agent Transactions</span>
         </button>
         <button 
           className={activeReport === 'account-summaries' ? 'active' : ''}
           onClick={() => setActiveReport('account-summaries')}
           disabled={loading}
         >
-          Account Summaries
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+          </svg>
+          <span className="button-label">Account Summaries</span>
         </button>
         <button 
           className={activeReport === 'active-fds' ? 'active' : ''}
           onClick={() => setActiveReport('active-fds')}
           disabled={loading}
         >
-          Active FDs
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+            <line x1="1" y1="10" x2="23" y2="10"/>
+          </svg>
+          <span className="button-label">Active FDs</span>
         </button>
         <button 
           className={activeReport === 'interest-summary' ? 'active' : ''}
           onClick={() => setActiveReport('interest-summary')}
           disabled={loading}
         >
-          Interest Summary
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="1" x2="12" y2="23"/>
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+          <span className="button-label">Interest Summary</span>
         </button>
         <button 
           className={activeReport === 'customer-activity' ? 'active' : ''}
           onClick={() => setActiveReport('customer-activity')}
           disabled={loading}
         >
-          Customer Activity
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <span className="button-label">Customer Activity</span>
         </button>
       </div>
 
@@ -797,28 +963,42 @@ const Reports: React.FC = () => {
                   </div>
                 </div>
                 <div className="table-container">
-                  <table className="report-table">
-                    <thead>
-                      <tr>
-                        <th>Plan Type</th>
-                        <th>Account Type</th>
-                        <th>Total Interest</th>
-                        <th>Account Count</th>
-                        <th>Average Interest</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {interestSummary.map(summary => (
-                        <tr key={`${summary.plan_type}-${summary.account_type}`}>
-                          <td>{summary.plan_type}</td>
-                          <td>{summary.account_type}</td>
-                          <td>{formatCurrency(parseNumber(summary.total_interest))}</td>
-                          <td>{parseNumber(summary.account_count)}</td>
-                          <td>{formatCurrency(parseNumber(summary.average_interest))}</td>
+                  {interestSummary.length === 0 ? (
+                    <div style={{ 
+                      textAlign: 'center', 
+                      padding: '40px 20px', 
+                      color: '#666',
+                      background: '#f9f9f9',
+                      borderRadius: '8px',
+                      border: '1px dashed #ddd'
+                    }}>
+                      <p style={{ margin: 0, fontSize: '16px' }}>No interest data available for {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</p>
+                      <p style={{ margin: '8px 0 0 0', fontSize: '14px', color: '#999' }}>Interest distributions will appear here once they have been credited</p>
+                    </div>
+                  ) : (
+                    <table className="report-table">
+                      <thead>
+                        <tr>
+                          <th>Plan Type</th>
+                          <th>Account Type</th>
+                          <th>Total Interest</th>
+                          <th>Account Count</th>
+                          <th>Average Interest</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {interestSummary.map(summary => (
+                          <tr key={`${summary.plan_type}-${summary.account_type}`}>
+                            <td>{summary.plan_type}</td>
+                            <td>{summary.account_type}</td>
+                            <td>{formatCurrency(parseNumber(summary.total_interest))}</td>
+                            <td>{parseNumber(summary.account_count)}</td>
+                            <td>{formatCurrency(parseNumber(summary.average_interest))}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               </div>
             )}
@@ -888,16 +1068,31 @@ const Reports: React.FC = () => {
             className="btn btn-secondary btn-sm"
             disabled={loading}
           >
-            📥 Export CSV
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Export CSV
           </button>
+          
+          
+
         )}
+
+        
         {activeReport === 'account-summaries' && accountSummaries.length > 0 && (
           <button 
             onClick={() => exportToCSV(accountSummaries, 'account_summaries')}
             className="btn btn-secondary btn-sm"
             disabled={loading}
           >
-            📥 Export CSV
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Export CSV
           </button>
         )}
         {activeReport === 'active-fds' && activeFDs.length > 0 && (
@@ -906,7 +1101,12 @@ const Reports: React.FC = () => {
             className="btn btn-secondary btn-sm"
             disabled={loading}
           >
-            📥 Export CSV
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Export CSV
           </button>
         )}
         {activeReport === 'interest-summary' && interestSummary.length > 0 && (
@@ -915,7 +1115,12 @@ const Reports: React.FC = () => {
             className="btn btn-secondary btn-sm"
             disabled={loading}
           >
-            📥 Export CSV
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Export CSV
           </button>
         )}
         {activeReport === 'customer-activity' && customerActivity.length > 0 && (
@@ -924,7 +1129,12 @@ const Reports: React.FC = () => {
             className="btn btn-secondary btn-sm"
             disabled={loading}
           >
-            📥 Export CSV
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Export CSV
           </button>
         )}
       </div>

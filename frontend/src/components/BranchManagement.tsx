@@ -155,6 +155,18 @@ const BranchManagement: React.FC = () => {
     }
   };
 
+  const clearForm = () => {
+    setFormData({
+      name: '',
+      contact_no_1: '',
+      contact_no_2: '',
+      address: '',
+      email: ''
+    });
+    setErrors({});
+    setIsAddingBranch(false);
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -188,6 +200,7 @@ const BranchManagement: React.FC = () => {
         >
           <span className="btn-icon">+</span> Add New Branch
         </button>
+        <div><br/></div>
       </div>
 
       {successMessage && (
@@ -316,7 +329,7 @@ const BranchManagement: React.FC = () => {
               <h4>Add New Branch</h4>
               <button 
                 className="close-btn"
-                onClick={() => setIsAddingBranch(false)}
+                onClick={clearForm}
               >
                 ×
               </button>
@@ -398,7 +411,7 @@ const BranchManagement: React.FC = () => {
                 <button 
                   type="button" 
                   className="btn btn-secondary"
-                  onClick={() => setIsAddingBranch(false)}
+                  onClick={clearForm}
                 >
                   Cancel
                 </button>

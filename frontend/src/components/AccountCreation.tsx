@@ -76,6 +76,10 @@ const AccountCreation: React.FC = () => {
   const [customerSearchResults, setCustomerSearchResults] = useState<Customer[]>([]);
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
   
+  // Stepper state for create flow
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  const [createdAccountId, setCreatedAccountId] = useState<number | null>(null);
+  
   // New state for account management
   const [activeTab, setActiveTab] = useState<'create' | 'manage'>('create');
   const [existingAccounts, setExistingAccounts] = useState<ExistingAccount[]>([]);
@@ -98,6 +102,20 @@ const AccountCreation: React.FC = () => {
     initial_deposit: 0,
     branch_id: 0
   });
+
+  // Define stepper steps
+  const steps = [
+    { number: 1, label: 'info 01' },
+    { number: 2, label: 'info 02' },
+    { number: 3, label: 'Done' }
+  ];
+
+  // Check icon for completed steps
+  const CheckIcon = () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+  );
 
   // Fetch data on component mount
   useEffect(() => {
@@ -155,17 +173,17 @@ const AccountCreation: React.FC = () => {
         axios.get('/api/agent/customers', {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        axios.get('/api/saving-plans', {
+        axios.get('/api/public/saving-plans', {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        axios.get('/api/branches', {
+        axios.get('/api/public/branches', {
           headers: { Authorization: `Bearer ${token}` }
         })
       ]);
 
-      setCustomers(customersRes.data.customers);
-      setSavingPlans(plansRes.data.saving_plans);
-      setBranches(branchesRes.data.branches);
+      setCustomers(customersRes.data.customers || []);
+      setSavingPlans(plansRes.data.saving_plans || plansRes.data || []);
+      setBranches(branchesRes.data.branches || branchesRes.data || []);
     } catch (error: any) {
       console.error('Failed to fetch data:', error);
       alert('Failed to load required data');
@@ -338,7 +356,8 @@ const AccountCreation: React.FC = () => {
     return [singlePlan, jointPlan].filter(Boolean) as SavingPlan[];
   };
 
-  const validateForm = (): boolean => {
+  // Step 1 validation - Customer selection
+  const validateStep1 = (): boolean => {
     const newErrors: FormErrors = {};
     
     if (!formData.customer_id) {
@@ -352,6 +371,14 @@ const AccountCreation: React.FC = () => {
         newErrors.customer_id = `${selectedPlan.plan_type} account requires account holder to be at least ${requiredAge} years old. Current age: ${customerAge}`;
       }
     }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Step 2 validation - Account details
+  const validateStep2 = (): boolean => {
+    const newErrors: FormErrors = {};
     
     if (!formData.saving_plan_id) {
       newErrors.saving_plan_id = 'Please select a saving plan';
@@ -388,8 +415,28 @@ const AccountCreation: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const validateForm = (): boolean => {
+    return validateStep1() && validateStep2();
+  };
+
+  // Step navigation handlers
+  const handleNextStep = async () => {
+    if (currentStep === 1 && validateStep1()) {
+      setCurrentStep(2);
+    } else if (currentStep === 2 && validateStep2()) {
+      // Create account when moving from step 2 to step 3
+      await createAccount();
+    }
+  };
+
+  const handlePrevStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep((prev) => (prev - 1) as 1 | 2 | 3);
+      setErrors({});
+    }
+  };
+
+  const createAccount = async () => {
     if (!validateForm()) return;
     
     setIsLoading(true);
@@ -410,28 +457,45 @@ const AccountCreation: React.FC = () => {
         }
       });
       
+      setCreatedAccountId(response.data.account_id);
       setSuccessMessage(`Account created successfully! Account Number: ${response.data.account_id}`);
-      setFormData({
-        customer_id: 0,
-        saving_plan_id: 0,
-        initial_deposit: 0,
-        branch_id: 0
-      });
-      setSelectedCustomer(null);
-      setSelectedPlan(null);
-      setJointHolders([]);
-      setSearchTerm('');
-      setSearchResults([]);
-      setShowSearch(false);
-      setCustomerSearchTerm('');
-      setCustomerSearchResults([]);
-      setShowCustomerSearch(false);
-      setErrors({});
+      setCurrentStep(3);
+      
+      // Scroll to top to show success message
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
       alert(error.response?.data?.message || 'Failed to create account');
+      setCurrentStep(2); // Stay on step 2 if error
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // This is no longer needed as account is created in step 2
+  };
+
+  const resetForm = () => {
+    setFormData({
+      customer_id: 0,
+      saving_plan_id: 0,
+      initial_deposit: 0,
+      branch_id: 0
+    });
+    setSelectedCustomer(null);
+    setSelectedPlan(null);
+    setJointHolders([]);
+    setSearchTerm('');
+    setSearchResults([]);
+    setShowSearch(false);
+    setCustomerSearchTerm('');
+    setCustomerSearchResults([]);
+    setShowCustomerSearch(false);
+    setErrors({});
+    setCurrentStep(1);
+    setCreatedAccountId(null);
+    setSuccessMessage('');
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -585,13 +649,13 @@ const AccountCreation: React.FC = () => {
     <div className="account-creation">
       <div className="section-header">
         <div>
-          <h4>Account Management</h4>
-          <p className="section-subtitle">Create and manage savings accounts</p>
+          {/* <h4>Account Management</h4>
+          <p className="section-subtitle">Create and manage savings accounts</p> */}
         </div>
       </div>
 
       {/* Tab Navigation */}
-      <div className="tab-navigation">
+      <div className="tabs">
         <button 
           className={`tab-btn ${activeTab === 'create' ? 'active' : ''}`}
           onClick={() => setActiveTab('create')}
@@ -620,10 +684,53 @@ const AccountCreation: React.FC = () => {
       )}
 
       {activeTab === 'create' ? (
-        <div className="account-form-container">
-          <form className="account-form" onSubmit={handleSubmit}>
-            <div className="form-section">
-              <h4>Customer Selection</h4>
+        <div className="wizard-container">
+          {/* Form Header with Icon */}
+          <div className="wizard-header">
+            <div className="wizard-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+              </svg>
+            </div>
+            <h1>Create Savings Account</h1>
+            <p>Open a new savings account for customers</p>
+          </div>
+
+          {/* Stepper */}
+          <div className="stepper">
+            <div className="stepper-line-container">
+              {steps.map((step, index) => (
+                <React.Fragment key={step.number}>
+                  <div className="step-item">
+                    <div className={`step-circle ${
+                      currentStep > step.number || currentStep == 3 ? 'step-completed' :
+                      currentStep === step.number ? 'step-active' : 'step-inactive'
+                    }`}>
+                      {currentStep > step.number|| currentStep == 3 ? <CheckIcon /> : step.number}
+                    </div>
+                    <span className={`step-label ${
+                      currentStep >= step.number ? 'step-label-active' : 'step-label-inactive'
+                    }`}>
+                      {step.label}
+                    </span>
+                  </div>
+                  {index < steps.length - 1 && (
+                    <div className={`step-line ${
+                      currentStep > step.number ? 'step-line-completed' : 'step-line-incomplete'
+                    }`} />
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+
+          <div className="wizard-form-container">
+            
+            <form onSubmit={handleSubmit}>
+              {/* Step 1: Customer Selection */}
+              {currentStep === 1 && (
+              <div className="form-step">
+                <h2 className="step-title">Customer Selection</h2>
               <div className="form-group">
                 <label>Select Customer *</label>
                 
@@ -719,12 +826,42 @@ const AccountCreation: React.FC = () => {
                 
                 {errors.customer_id && <span className="error-text">{errors.customer_id}</span>}
               </div>
-            </div>
 
-            <div className="form-section">
-              <h4>Account Details</h4>
+              {/* Step 1 Navigation */}
+              <div className="form-actions stepper-actions">
+                <button 
+                  type="button" 
+                  className="btn-back"
+                  disabled={currentStep === 1}
+                
+                >
+                  Back
+                </button>
+                <button 
+                  type="button" 
+                  className="btn-danger"
+                  onClick={resetForm}
+                  disabled={currentStep === 1}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button" 
+                  className="btn-next"
+                  onClick={handleNextStep}
+                >
+                  Next
+                </button>
+              </div>
+              </div>
+              )}
+
+              {/* Step 2: Account Details */}
+              {currentStep === 2 && (
+              <div className="form-step">
+                <h2 className="step-title">Account Details</h2>
               
-              <div className="form-row">
+              <div className="form-grid">
                 <div className="form-group">
                   <label>Saving Plan *</label>
                   <select
@@ -921,48 +1058,186 @@ const AccountCreation: React.FC = () => {
                   </div>
                 </div>
               )}
-            </div>
-            <div className="form-actions">
-              <button 
-                type="button" 
-                className="btn btn-secondary"
-                onClick={() => {
-                  setFormData({
-                    customer_id: 0,
-                    saving_plan_id: 0,
-                    initial_deposit: 0,
-                    branch_id: 0
-                  });
-                  setSelectedCustomer(null);
-                  setSelectedPlan(null);
-                  setJointHolders([]);
-                  setSearchTerm('');
-                  setSearchResults([]);
-                  setShowSearch(false);
-                  setCustomerSearchTerm('');
-                  setCustomerSearchResults([]);
-                  setShowCustomerSearch(false);
-                  setErrors({});
-                }}
-              >
-                Clear Form
-              </button>
-              <button 
-                type="submit" 
-                className="btn btn-primary"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <span className="loading-spinner"></span>
-                    Creating Account...
-                  </>
-                ) : (
-                  'Create Account'
+
+              {/* Step 2 Navigation */}
+              <div className="form-actions stepper-actions">
+                <button 
+                  type="button" 
+                  className="btn-back"
+                  onClick={handlePrevStep}
+                  disabled={isLoading}
+                >
+                  Back
+                </button>
+                <button 
+                  type="button" 
+                  className="btn-danger"
+                  onClick={resetForm}
+                  disabled={isLoading}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-primary btn-success"
+                  onClick={handleNextStep}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <span className="loading-spinner"></span>
+                      Creating...
+                    </>
+                  ) : (
+                    'Create Account'
+                  )}
+                </button>
+              </div>
+              </div>
+              )}
+
+              {/* Step 3: Account Created Successfully */}
+              {currentStep === 3 && (
+              <div className="form-step">
+                <div className="success-container">
+                  <div className="success-icon-large">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                  </div>
+                  <h2 className="step-title" style={{textAlign: 'center', color: 'var(--success-color)'}}>Account Created Successfully!</h2>
+                  <p className="section-subtitle" style={{textAlign: 'center'}}>The new savings account has been opened</p>
+                </div>
+
+              <div className="confirmation-summary">
+                {/* Account Number - Highlighted */}
+                {createdAccountId && (
+                  <div className="confirmation-section" style={{background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', padding: 'var(--spacing-lg)', borderRadius: 'var(--border-radius-lg)', marginBottom: 'var(--spacing-lg)'}}>
+                    <div className="detail-row" style={{justifyContent: 'center', fontSize: '1.2rem'}}>
+                      <span className="detail-label" style={{fontSize: '1.1rem'}}>Account Number:</span>
+                      <span className="detail-value"><strong style={{color: 'var(--primary-color)', fontSize: '1.3rem'}}>{createdAccountId}</strong></span>
+                    </div>
+                  </div>
                 )}
-              </button>
-            </div>
-          </form>
+
+                {/* Customer Information */}
+                <div className="confirmation-section">
+                  <h5>Account Holder Information</h5>
+                  {selectedCustomer && (
+                    <div className="confirmation-details">
+                      <div className="detail-row">
+                        <span className="detail-label">Customer Name:</span>
+                        <span className="detail-value"><strong>{selectedCustomer.first_name} {selectedCustomer.last_name}</strong></span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Customer ID:</span>
+                        <span className="detail-value">{selectedCustomer.customer_id}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">NIC:</span>
+                        <span className="detail-value">{selectedCustomer.nic}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Age:</span>
+                        <span className="detail-value">{calculateAge(selectedCustomer.date_of_birth)} years</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Joint Holders (if applicable) */}
+                {selectedPlan?.plan_type === 'Joint' && jointHolders.length > 0 && (
+                  <div className="confirmation-section">
+                    <h5>Joint Account Holders ({jointHolders.length})</h5>
+                    <div className="confirmation-details">
+                      {jointHolders.map((holder, index) => (
+                        <div key={holder.customer_id} className="detail-row">
+                          <span className="detail-label">Holder {index + 1}:</span>
+                          <span className="detail-value">{holder.first_name} {holder.last_name} (NIC: {holder.nic})</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Account Details */}
+                {selectedPlan && (
+                  <div className="confirmation-section">
+                    <h5>Account Details</h5>
+                    <div className="confirmation-details">
+                      <div className="detail-row">
+                        <span className="detail-label">Plan Type:</span>
+                        <span className="detail-value"><strong>{selectedPlan.plan_type}</strong></span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Interest Rate:</span>
+                        <span className="detail-value">{selectedPlan.interest}% per annum</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Minimum Balance:</span>
+                        <span className="detail-value">LKR {selectedPlan.min_balance.toLocaleString()}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Initial Deposit:</span>
+                        <span className="detail-value"><strong className="text-success">LKR {formData.initial_deposit.toLocaleString()}</strong></span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Current Balance:</span>
+                        <span className="detail-value"><strong className="text-success">LKR {formData.initial_deposit.toLocaleString()}</strong></span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Branch Information */}
+                {formData.branch_id > 0 && (
+                  <div className="confirmation-section">
+                    <h5>Branch Information</h5>
+                    <div className="confirmation-details">
+                      <div className="detail-row">
+                        <span className="detail-label">Branch:</span>
+                        <span className="detail-value">
+                          {branches.find(b => b.branch_id === formData.branch_id)?.name || `Branch ${formData.branch_id}`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Status */}
+                <div className="confirmation-section">
+                  <h5>Account Status</h5>
+                  <div className="confirmation-details">
+                    <div className="detail-row">
+                      <span className="detail-label">Status:</span>
+                      <span className="detail-value"><span className="badge badge-success">Active</span></span>
+                    </div>
+                    <div className="detail-row">
+                      <span className="detail-label">Created Date:</span>
+                      <span className="detail-value">{new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 3 Navigation - Only "Create Another Account" button */}
+              <div className="form-actions stepper-actions" style={{justifyContent: 'center'}}>
+                <button 
+                  type="button" 
+                  className="btn btn-primary btn-lg"
+                  onClick={resetForm}
+                  style={{minWidth: '200px'}}
+                >
+                  Create Another Account
+                </button>
+                </div>
+              </div>
+              )}
+
+
+            </form>
+          </div>
         </div>
       ) : (
         // Manage Existing Accounts Tab
