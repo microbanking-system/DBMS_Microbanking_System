@@ -535,7 +535,7 @@ router.get('/accounts/search/:searchTerm', async (req, res) => {
       JOIN customer c ON t.customer_id = c.customer_id
       JOIN savingplan sp ON a.saving_plan_id = sp.saving_plan_id
       JOIN branch b ON a.branch_id = b.branch_id
-      WHERE a.account_id ILIKE $1 OR c.first_name ILIKE $1 OR c.last_name ILIKE $1
+  WHERE CAST(a.account_id AS TEXT) ILIKE $1 OR c.first_name ILIKE $1 OR c.last_name ILIKE $1
       GROUP BY a.account_id, a.balance, a.account_status, a.open_date, a.branch_id, 
                a.saving_plan_id, a.fd_id, sp.plan_type, sp.interest, sp.min_balance, b.name
       ORDER BY a.open_date DESC

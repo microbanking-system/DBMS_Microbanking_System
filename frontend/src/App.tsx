@@ -18,6 +18,25 @@ axios.interceptors.request.use((config) => {
   return config;
 });
 
+// Handle unauthorized responses globally (e.g., expired token)
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error?.response?.status;
+    if (status === 401 || status === 403) {
+      try {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      } catch {}
+      // Force redirect to login
+      if (typeof window !== 'undefined') {
+        window.location.replace('/');
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
