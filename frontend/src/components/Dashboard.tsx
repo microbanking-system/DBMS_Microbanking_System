@@ -14,7 +14,6 @@ import Reports from './Reports';
 import TeamManagement from './TeamManagement';
 import TransactionReports from './TransactionReports';
 import CustomerAccounts from './CustomerAccounts';
-import ManagerCustomerSearch from './ManagerCustomerSearch';
 import Footer from './Footer';
 import bankLogo from '../assets/imgs/B_Trust_logo_white.png';
 
@@ -188,11 +187,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       label: 'Customer Accounts',
       icon: (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"></path></svg>)
     },
-    {
-      id: 'customer-search',
-      label: 'Customer Details',
-      icon: (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>)
-    }
+    
   ];
 
   // Get current menu items and active section based on role
@@ -268,18 +263,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                 <p>Manage customer accounts in your branch</p>
                 <button onClick={() => setManagerActiveSection('customers')}>Manage Accounts</button>
               </div>
-              <div className="card">
-                <h3>Search Customers</h3>
-                <p>Find customers by name or NIC in your branch</p>
-                <button onClick={() => setManagerActiveSection('customer-search')}>Search</button>
-              </div>
+              
             </div>
           </div>
         );
         case 'team': return <TeamManagement />;
         case 'transactions': return <TransactionReports />;
-        case 'customers': return <CustomerAccounts />;
-        case 'customer-search': return <ManagerCustomerSearch />;
+  case 'customers': return <CustomerAccounts />;
         default: return null;
       }
     }
