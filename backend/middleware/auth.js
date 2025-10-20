@@ -28,8 +28,13 @@ const verifyToken = (req, res, next) => {
       });
     }
 
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hey');
+    // Verify token using required secret
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      console.error('JWT_SECRET is not set in environment');
+      return res.status(500).json({ status: 'error', message: 'Server configuration error' });
+    }
+    const decoded = jwt.verify(token, secret);
     
     // Attach user info to request object
     req.user = {

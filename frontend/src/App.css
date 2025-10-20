@@ -8923,11 +8923,14 @@ select:disabled {
   border-radius: var(--border-radius-lg);
   padding: var(--spacing-lg);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  display: flex;
+  /* Use grid to align icon and content consistently */
+  display: grid;
+  grid-template-columns: 56px 1fr; /* match icon size for precise alignment */
   align-items: center;
-  gap: var(--spacing-md);
+  column-gap: var(--spacing-md);
   transition: all 0.3s ease;
   border: 2px solid transparent;
+  min-height: 100px; /* ensure all cards have the same height */
 }
 
 .transaction-reports .summary-card:hover {
@@ -8965,22 +8968,39 @@ select:disabled {
 }
 
 .transaction-reports .summary-info {
-  flex: 1;
+  /* Two fixed rows: title (fixed height) + value */
+  display: grid;
+  grid-template-rows: 20px auto;
+  row-gap: 4px;
+  align-content: center;
+  min-width: 0;          /* allow content to shrink for ellipsis */
+  max-width: 280px;      /* cap the width of the text column */
+  justify-self: start;   /* pin to the left within available grid track */
 }
 
 .transaction-reports .summary-info h4 {
-  margin: 0 0 var(--spacing-xs) 0;
+  margin: 0;
   font-size: 0.9rem;
   color: #7f8c8d;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  height: 20px; /* reserve space so values align across cards */
+  line-height: 20px;
 }
 
 .transaction-reports .summary-value {
   font-size: 1.75rem;
   font-weight: 700;
   color: var(--primary-color);
+  white-space: nowrap; /* prevent currency from wrapping */
+  height: 32px;       /* fixed height for consistent baseline */
+  line-height: 32px;  /* align digits on the same baseline */
+  align-self: start;  /* keep value pinned under the title across cards */
+  font-variant-numeric: tabular-nums; /* consistent digit widths for better alignment */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis; /* gracefully truncate if too long */
 }
 
 .transaction-reports .summary-card.deposit .summary-value {
@@ -9016,12 +9036,14 @@ select:disabled {
 }
 
 .transaction-reports .transaction-count {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-  color: white;
+  /* Remove gradient: use a subtle solid background with readable text */
+  background: #f5f7fa;
+  color: #2c3e50;
   padding: 6px 16px;
   border-radius: 100px;
   font-size: 0.85rem;
   font-weight: 600;
+  border: 1px solid #e0e6ee;
 }
 
 /* Table Styles */
@@ -9402,12 +9424,14 @@ select:disabled {
 }
 
 .customer-accounts .results-count {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-  color: white;
+  /* Remove gradient: use a subtle solid background with readable text */
+  background: #f5f7fa;
+  color: #2c3e50;
   padding: 6px 16px;
   border-radius: 100px;
   font-size: 0.85rem;
   font-weight: 600;
+  border: 1px solid #e0e6ee;
 }
 
 /* Table Styles */

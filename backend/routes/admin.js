@@ -63,6 +63,18 @@ router.get('/reports/active-fds', adminController.getActiveFDsReport);
 router.get('/reports/interest-summary', adminController.getInterestSummaryReport);
 router.get('/reports/customer-activity', adminController.getCustomerActivityReport);
 
+/**
+ * GET /api/admin/savings-interest/summary
+ * Savings interest automation summary for Admin UI
+ */
+router.get('/savings-interest/summary', adminController.getSavingsInterestSummary);
+
+/**
+ * GET /api/admin/fd-interest/summary
+ * Fixed Deposit interest automation summary for Admin UI
+ */
+router.get('/fd-interest/summary', adminController.getFDInterestSummary);
+
 // TODO: Add more admin routes as needed
 
 module.exports = router;

@@ -155,6 +155,8 @@ const AccountDetailsView: React.FC = () => {
     return `LKR ${amount.toLocaleString()}`;
   };
 
+  const isCredit = (type: string) => type === 'Deposit' || type === 'Interest';
+
   const formatDate = (dateString: string): string => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -397,8 +399,8 @@ const AccountDetailsView: React.FC = () => {
                                         {transaction.transaction_type}
                                       </span>
                                     </td>
-                                    <td className={transaction.transaction_type === 'Deposit' ? 'text-success' : 'text-danger'}>
-                                      {transaction.transaction_type === 'Deposit' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                                    <td className={isCredit(transaction.transaction_type) ? 'text-success' : 'text-danger'}>
+                                      {isCredit(transaction.transaction_type) ? '+' : '-'}{formatCurrency(transaction.amount)}
                                     </td>
                                     <td>{transaction.description}</td>
                                   </tr>

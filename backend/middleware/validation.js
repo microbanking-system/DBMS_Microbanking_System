@@ -189,7 +189,14 @@ exports.validateFDCreation = [
       return true;
     }),
   body('auto_renewal_status')
-    .isBoolean().withMessage('Auto renewal status must be true or false'),
+    .custom((val) => {
+      if (typeof val === 'boolean') return true;
+      if (typeof val === 'string') {
+        const v = val.toLowerCase();
+        if (v === 'true' || v === 'false') return true;
+      }
+      throw new Error('Auto renewal status must be boolean true/false or "True"/"False"');
+    }),
   validate
 ];
 
@@ -207,9 +214,7 @@ exports.validateEmployeeRegistration = [
     .matches(/^[a-zA-Z0-9_]+$/).withMessage('Username can only contain letters, numbers, and underscores'),
   body('password')
     .notEmpty().withMessage('Password is required')
-    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
-    .withMessage('Password must contain uppercase, lowercase, number, and special character'),
+    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('first_name')
     .trim()
     .notEmpty().withMessage('First name is required')

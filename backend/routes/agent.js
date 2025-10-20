@@ -41,6 +41,12 @@ router.get('/customers/:id', agentController.getCustomerById);
 router.put('/customers/:id', agentController.updateCustomer);
 
 /**
+ * PUT /api/agent/customers/:id/contact
+ * Update customer contact details only
+ */
+router.put('/customers/:id/contact', agentController.updateCustomerContact);
+
+/**
  * POST /api/agent/accounts/create
  * Create a new account for customer
  */
@@ -51,6 +57,12 @@ router.post('/accounts/create', agentController.createAccount);
  * Get active accounts for transaction processing
  */
 router.get('/accounts', agentController.getAccounts);
+
+/**
+ * GET /api/agent/accounts/:id/details
+ * Get full details for a specific account
+ */
+router.get('/accounts/:id/details', agentController.getAccountDetails);
 
 /**
  * GET /api/agent/performance
