@@ -2,7 +2,7 @@
 -- CREATE DATABASE microbanking;
 
 -- Connect to the database
-\c newdb;
+\c microbanking;
 
 -- Create enum types
 CREATE TYPE gender_type AS ENUM ('Male', 'Female', 'Other');
@@ -80,7 +80,11 @@ CREATE TABLE IF NOT EXISTS Employee (
     contact_id INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (branch_id) REFERENCES Branch(branch_id) ON DELETE RESTRICT,
-    FOREIGN KEY (contact_id) REFERENCES Contact(contact_id) ON DELETE RESTRICT
+    FOREIGN KEY (contact_id) REFERENCES Contact(contact_id) ON DELETE RESTRICT,
+    -- NIC must be either 12 digits (new format) or 9 digits followed by 'V' (old format)
+    CONSTRAINT chk_employee_nic_format CHECK (
+        nic ~ '^[0-9]{12}$' OR nic ~ '^[0-9]{9}V$'
+    )
 );
 
 -- Enforce minimum age (18+) for employees at the database level
@@ -124,7 +128,11 @@ CREATE TABLE IF NOT EXISTS Customer (
     date_of_birth DATE NOT NULL,
     contact_id INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (contact_id) REFERENCES Contact(contact_id) ON DELETE RESTRICT
+    FOREIGN KEY (contact_id) REFERENCES Contact(contact_id) ON DELETE RESTRICT,
+    -- NIC or Birth Certificate No. must be either 12 digits or 9 digits followed by 'V'
+    CONSTRAINT chk_customer_nic_or_bc_format CHECK (
+        nic ~ '^[0-9]{12}$' OR nic ~ '^[0-9]{9}V$'
+    )
 );
 
 -- Ensure NIC is unique across customers
@@ -673,6 +681,10 @@ BEGIN
         IF length(p_new_nic) > 30 THEN
             RAISE EXCEPTION 'NIC length must be 30 characters or fewer';
         END IF;
+        -- Validate NIC format: 12 digits or 9 digits followed by V/v
+        IF NOT (p_new_nic ~ '^[0-9]{12}$' OR p_new_nic ~ '^[0-9]{9}V$') THEN
+            RAISE EXCEPTION 'Invalid NIC format. Must be 12 digits or 9 digits followed by V';
+        END IF;
         -- Update owner's NIC. Customer audit trigger will capture this change with actor context set by API.
         UPDATE customer SET nic = btrim(p_new_nic) WHERE customer_id = v_customer_id;
     END IF;
@@ -694,6 +706,15 @@ BEGIN
         -- Disallow from Senior -> Adult (downgrade)
         IF v_old_plan_type = 'Senior' THEN
             RAISE EXCEPTION 'Downgrades are not allowed';
+        END IF;
+        -- When moving Teen -> Adult, NIC must be provided and valid
+        IF v_old_plan_type = 'Teen' THEN
+            IF p_new_nic IS NULL OR btrim(p_new_nic) = '' THEN
+                RAISE EXCEPTION 'NIC is required when upgrading Teen plan to Adult';
+            END IF;
+            IF NOT (p_new_nic ~ '^[0-9]{12}$' OR p_new_nic ~ '^[0-9]{9}V$') THEN
+                RAISE EXCEPTION 'Invalid NIC format for Adult upgrade. Must be 12 digits or 9 digits followed by V';
+            END IF;
         END IF;
     ELSIF v_new_plan_type = 'Senior' THEN
         IF v_age_years < 60 THEN

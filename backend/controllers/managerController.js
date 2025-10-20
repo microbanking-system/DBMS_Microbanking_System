@@ -321,3 +321,48 @@ exports.getBranchAccounts = async (req, res) => {
     client.release();
   }
 };
+
+/**
+ * Get customers by exact NIC within manager's branch
+ * GET /api/manager/customers/by-nic/:nic
+ */
+exports.getCustomersByNic = async (req, res) => {
+  const rawNic = (req.params.nic || '').toString().trim();
+  const nic = rawNic.toUpperCase();
+
+  if (!/^([0-9]{12}|[0-9]{9}V)$/.test(nic)) {
+    return res.status(400).json({ status: 'error', message: 'Invalid NIC/BC format. Use 12 digits or 9 digits followed by V' });
+  }
+
+  const client = await pool.connect();
+  try {
+    // Manager's branch
+    const mgr = await client.query('SELECT branch_id FROM employee WHERE employee_id = $1', [req.user.id]);
+    if (mgr.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Manager not found' });
+    const branchId = mgr.rows[0].branch_id;
+
+    // Exact NIC within this branch; include accounts count and IDs
+    const result = await client.query(`
+      SELECT 
+        c.customer_id, c.first_name, c.last_name, c.gender, c.nic, c.date_of_birth,
+        ct.contact_no_1, ct.contact_no_2, ct.email, ct.address,
+        COALESCE(COUNT(DISTINCT a.account_id), 0) AS accounts_count,
+        COALESCE(ARRAY_AGG(DISTINCT a.account_id) FILTER (WHERE a.account_id IS NOT NULL), ARRAY[]::int[]) AS account_ids
+      FROM customer c
+      JOIN contact ct ON c.contact_id = ct.contact_id
+      LEFT JOIN takes t ON c.customer_id = t.customer_id
+      LEFT JOIN account a ON t.account_id = a.account_id AND a.branch_id = $1
+      WHERE c.nic = $2
+      GROUP BY c.customer_id, ct.contact_no_1, ct.contact_no_2, ct.email, ct.address
+      ORDER BY c.last_name, c.first_name
+      LIMIT 50
+    `, [branchId, nic]);
+
+    return res.json({ status: 'success', customers: result.rows });
+  } catch (error) {
+    console.error('Database error:', error);
+    return res.status(500).json({ status: 'error', message: 'Database error' });
+  } finally {
+    client.release();
+  }
+};

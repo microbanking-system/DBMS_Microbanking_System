@@ -110,14 +110,24 @@ const CustomerAccounts: React.FC = () => {
   // Filter and sort accounts
   const filteredAccounts = accounts
     .filter(account => {
-      const matchesSearch = 
-        account.account_id.toString().includes(searchTerm) ||
-        account.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        account.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        account.nic.toLowerCase().includes(searchTerm.toLowerCase());
-      
+      const term = searchTerm.trim().toUpperCase();
+      const isAllDigits = /^[0-9]+$/.test(term);
+      const isTwelveDigitNic = /^[0-9]{12}$/.test(term);
+      const isOldNic = /^[0-9]{9}V$/.test(term);
+
+      // Only allow: exact Account ID or exact NIC/BC
+      let matchesSearch = true;
+      if (term) {
+        if (isAllDigits && !isTwelveDigitNic) {
+          matchesSearch = account.account_id.toString() === term;
+        } else if (isTwelveDigitNic || isOldNic) {
+          matchesSearch = account.nic.toUpperCase() === term;
+        } else {
+          matchesSearch = false; // disallow name or partial matches
+        }
+      }
+
       const matchesStatus = statusFilter === 'all' || account.account_status.toLowerCase() === statusFilter;
-      
       return matchesSearch && matchesStatus;
     })
     .sort((a, b) => {
@@ -265,7 +275,7 @@ const CustomerAccounts: React.FC = () => {
           </svg>
           <input
             type="text"
-            placeholder="Search by account ID, customer name, or NIC..."
+            placeholder="Search by Account ID or exact NIC/Birth Certificate (e.g., 123456789V or 12 digits)"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="search-input"

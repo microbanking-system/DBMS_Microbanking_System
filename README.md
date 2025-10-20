@@ -9,18 +9,17 @@ Overview
 
 What’s included
 - REST API with endpoints for authentication, public lookups, agent operations (customers, accounts, transactions, fixed deposits), admin operations (users, branches, reports), and manager views.
-- Database schema, functions, triggers, and materialized views for transactional safety and reporting under `database/init-postgres.sql`.
-- Postman collection for 37 endpoints under `backend/postman-collection.json`.
-- Frontend dashboard and flows for login and role‑based features.
+- Database schema, functions, triggers under `database/init-postgres.sql`.
+- Postman collection under `backend/postman-collection.json`.
+- Frontend dashboards for role‑based features.
 
-Recent changes (security, correctness, DX)
-- Enforce JWT secret via env: removed fallback; backend requires JWT_SECRET.
-- Client auth hardening: ProtectedRoute checks JWT exp; expired/malformed tokens log out.
-- Interest “system actor” is configurable via SYSTEM_ACTOR_EMPLOYEE_ID (default 1) for audit trails.
-- DB uniqueness: Unique index on customer.nic added.
-- Postman samples fixed: numeric account_id and corrected request bodies for account creation and FD endpoints.
-- Frontend axios base URL reads REACT_APP_API_BASE_URL.
- - FD creation accepts boolean or enum string; backend normalizes to DB enum ('True'/'False'). Postman sample uses string.
+Recent changes (policy, data integrity, UX)
+- Database: NIC/Birth Certificate format enforced at DB level: exactly 12 digits or 9 digits followed by uppercase `V`.
+- Database: Employees must be 18+ (trigger validates `date_of_birth`).
+- Business rule: Changing a Savings plan from Teen → Adult requires a valid NIC (not a birth certificate number).
+- Backend: Exact NIC endpoints added for Agent and Manager UIs (see API overview below).
+- Reports: All date‑range reports use inclusive end dates by comparing `DATE(t.time) BETWEEN startDate AND endDate`.
+- Frontend: Customer/Account/FD searches changed to exact NIC/BC and/or ID only (no fuzzy name matching in those flows).
 
 Architecture
 - Backend service in `backend/` and frontend app in `frontend/`.
@@ -29,7 +28,7 @@ Architecture
 
 Prerequisites
 - Node.js 18+ and npm (or yarn)
-- PostgreSQL 14+ (local or remote)
+- PostgreSQL 14+
 - Git
 
 Environment variables
@@ -48,63 +47,90 @@ Create a `.env` file in `backend/` with at least:
 - SAVINGS_INTEREST_CRON=30 3 * * *     # Optional; defaults used if omitted
 - SYSTEM_ACTOR_EMPLOYEE_ID=1           # Optional; employee id for automated interest credits
 
-Optionally, for the frontend create `frontend/.env`:
+Frontend env (`frontend/.env`):
 - REACT_APP_API_BASE_URL=http://localhost:5000
-You can copy `frontend/.env.example` as a starting point.
 
-Database setup
-1) Create the database and user (in psql or your client):
-	- CREATE DATABASE microbanking;
-	- CREATE USER postgres WITH PASSWORD 'yourpassword';    # or use an existing role
-2) Load schema and functions:
-	- Open `database/init-postgres.sql` and ensure the `\c` line targets your DB (e.g., microbanking). Adjust or connect manually, then run the script to create tables, enums, triggers, and views.
-3) Seed an admin:
-	- Open `database/insert-admin.sql` and follow the comments to insert contact, branch, and a default admin user (username: admin, password hash included).
-4) Seed example saving/FD plans:
-	- Use `database/insert-interests.sql` to populate initial interest plans if provided.
+Quick start (local)
+1) Backend install & run
+	 - `cd backend && npm install`
+	 - Configure `backend/.env`
+	 - Run: `npm run dev` (nodemon) or `npm start`
+	 - Health: GET http://localhost:5000/api/health
+2) Frontend install & run
+	 - `cd frontend && npm install`
+	 - Ensure `REACT_APP_API_BASE_URL` points to backend
+	 - Run: `npm start` (http://localhost:3000)
 
-Backend: install and run
-1) In a terminal, from the repo root:
-	- cd backend
-	- npm install
-2) Ensure `backend/.env` is configured.
-3) Start the API server:
-	- npm run dev            # with nodemon
-	- or npm start           # plain node
-4) Health check: GET http://localhost:5000/api/health
+Database setup & reset
+- From repo root:
+	1. Drop and re-create database (adjust `-U`/password for your environment):
+		 - `dropdb --if-exists -U postgres -h localhost microbanking`
+		 - `createdb -U postgres -h localhost microbanking`
+	2. Initialize schema:
+		 - `psql -U postgres -h localhost -d microbanking -f database/init-postgres.sql`
+	3. Seed saving and FD plans:
+		 - `psql -U postgres -h localhost -d microbanking -f database/insert-interests.sql`
+	4. Seed admin user (default username: `admin`):
+		 - `psql -U postgres -h localhost -d microbanking -f database/insert-admin.sql`
+	5. Optional: generate a password hash for admin with `node backend/generate-admin-hash.js`
 
-Frontend: install and run
-1) In a new terminal from the repo root:
-	- cd frontend
-	- npm install
-2) Ensure `frontend/.env` has REACT_APP_API_BASE_URL pointing to the backend.
-3) Start the app:
-	- npm start
-4) Open http://localhost:3000
+Database rules and constraints (important)
+- Employee NIC must match one of:
+	- 12 digits: `^[0-9]{12}$`
+	- 9 digits + uppercase V: `^[0-9]{9}V$`
+- Customer NIC/Birth Certificate number must match the same rules as above.
+- Unique NIC for customers: unique index on `customer.nic`.
+- Employees must be 18+ (trigger on insert/update of `date_of_birth`).
+- Savings plan change Teen → Adult requires a valid NIC; DB function enforces this and will reject invalid transitions.
+
+API overview (selected)
+- Auth: `/api/auth/login`
+- Admin:
+	- Users/Branches CRUD
+	- Reports (all inclusive date range):
+		- `/api/admin/reports/agent-transactions?startDate&endDate`
+		- `/api/admin/reports/account-summaries?startDate&endDate`
+		- `/api/admin/reports/active-fds`
+		- `/api/admin/reports/interest-summary?month&year`
+		- `/api/admin/reports/customer-activity?startDate&endDate`
+- Agent:
+	- Customers: `/api/agent/customers/by-nic/:nic` (exact NIC/BC), `/api/agent/customers/:id`
+	- Accounts: `/api/agent/accounts/by-nic/:nic` (exact NIC/BC), `/api/agent/accounts/:id/details`
+	- FDs: `/api/agent/fixed-deposits/by-nic/:nic` (exact NIC/BC)
+	- Transactions: `/api/agent/transactions/process`
+- Manager:
+	- Customers by exact NIC in branch: `/api/manager/customers/by-nic/:nic`
+	- Branch accounts/transactions/team: `/api/manager/accounts`, `/api/manager/transactions`, `/api/manager/team/agents`
+
+Frontend behavior (search and validations)
+- Customer/Account/FD selections/searches are restricted to exact NIC/Birth Certificate numbers and/or exact IDs:
+	- 12‑digit numbers are treated as NIC/BC (not account IDs).
+	- 9 digits + `V` (uppercase) also treated as NIC.
+	- Account/FD searches accept exact numeric IDs where applicable.
+- Teen → Adult plan changes require NIC to be present on the customer record; the UI blocks invalid transitions and the backend rejects them.
 
 Using the Postman collection
 - Import `backend/postman-collection.json`.
-- The “Login - Admin” request stores the token in a collection variable (`admin_token`). Similar for agent/manager.
-- base_url defaults to http://localhost:5000 in the collection; change it if needed.
-- Account creation now expects these bodies:
-  - Single: { "customer_id": 1, "branch_id": 1, "saving_plan_id": 1, "initial_deposit": 5000 }
-  - Joint: { "customer_id": 1, "joint_holders": [2], "branch_id": 1, "saving_plan_id": 1, "initial_deposit": 10000 }
-
-- Fixed deposit creation example body:
-	{ "customer_id": 1, "account_id": 1, "fd_plan_id": 1, "principal_amount": 50000, "auto_renewal_status": "False" }
+- The “Login - Admin” request stores a token in a collection variable. Similar flows for agent/manager.
+- `base_url` defaults to http://localhost:5000; change if needed.
+- Account creation examples:
+	- Single: `{ "customer_id": 1, "branch_id": 1, "saving_plan_id": 1, "initial_deposit": 5000 }`
+	- Joint: `{ "customer_id": 1, "joint_holders": [2], "branch_id": 1, "saving_plan_id": 1, "initial_deposit": 10000 }`
+- FD creation example:
+	- `{ "customer_id": 1, "account_id": 1, "fd_plan_id": 1, "principal_amount": 50000, "auto_renewal_status": "False" }`
 
 Notes and tips
 - JWT must be configured (JWT_SECRET). Server refuses to start token operations without it.
-- NIC uniqueness is enforced at DB level. If applying to an existing DB with duplicates, resolve those before creating the unique index.
 - Interest schedulers:
-  - For fast local testing set INTEREST_CRON_DEBUG=1.
-  - Production uses 30‑day cycles per-account based on last credited/open date.
-- Logging: set SUPPRESS_GENERAL_LOGS=1 to silence HTTP logs from morgan.
+	- For fast local testing set `INTEREST_CRON_DEBUG=1`.
+	- Production uses 30‑day cycles per-account based on last credited/open date.
+- Logging: set `SUPPRESS_GENERAL_LOGS=1` to silence HTTP logs from morgan.
 
 Troubleshooting
 - DB connection fails: verify DB_HOST/PORT/NAME/USER/PASSWORD in `backend/.env`.
-- CORS issues: backend uses cors(); confirm ports and base URLs.
+- CORS issues: backend uses `cors()`; confirm ports and base URLs.
 - 401/403 responses: ensure token exists, isn’t expired, and user has required role.
-- Postman errors on payloads: verify numeric IDs and payload keys as shown above.
+- Reports appear empty: ensure the date range covers activity; reports use inclusive end dates by `DATE(t.time)` filtering.
+- Customer NIC errors: NIC/BC must be 12 digits or 9 digits + uppercase `V`.
 
 

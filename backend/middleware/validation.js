@@ -49,10 +49,11 @@ exports.validateCustomerRegistration = [
     .notEmpty().withMessage('Last name is required')
     .isLength({ min: 2 }).withMessage('Last name must be at least 2 characters')
     .matches(/^[a-zA-Z\s]+$/).withMessage('Last name can only contain letters'),
+  // NIC or Birth Certificate number (both stored in `nic` field)
   body('nic')
     .trim()
-    .notEmpty().withMessage('NIC is required')
-    .matches(/^([0-9]{9}[vVxX]|[0-9]{12})$/).withMessage('Invalid NIC format (must be 9 digits + V/X or 12 digits)'),
+    .notEmpty().withMessage('NIC/Birth Certificate number is required')
+    .matches(/^([0-9]{12}|[0-9]{9}V)$/).withMessage('Invalid NIC/Birth Certificate format (use 12 digits or 9 digits followed by V)'),
   body('gender')
     .notEmpty().withMessage('Gender is required')
     .isIn(['Male', 'Female', 'Other']).withMessage('Gender must be Male, Female, or Other'),
@@ -226,7 +227,7 @@ exports.validateEmployeeRegistration = [
   body('nic')
     .trim()
     .notEmpty().withMessage('NIC is required')
-    .matches(/^([0-9]{9}[vVxX]|[0-9]{12})$/).withMessage('Invalid NIC format'),
+    .matches(/^([0-9]{9}V|[0-9]{12})$/).withMessage('Invalid NIC format (must be 12 digits or 9 digits followed by V)'),
   body('gender')
     .notEmpty().withMessage('Gender is required')
     .isIn(['Male', 'Female', 'Other']).withMessage('Gender must be Male, Female, or Other'),

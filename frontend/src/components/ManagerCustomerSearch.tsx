@@ -26,8 +26,15 @@ const ManagerCustomerSearch: React.FC = () => {
     if (e) e.preventDefault();
     setError(null);
 
-    const trimmed = query.trim();
+    const trimmed = query.trim().toUpperCase();
     if (!trimmed) {
+      setResults([]);
+      return;
+    }
+
+    // NIC-only: 12 digits or 9 digits followed by uppercase V
+    if (!/^([0-9]{12}|[0-9]{9}V)$/.test(trimmed)) {
+      setError('Enter a valid NIC/Birth Certificate number: 12 digits or 9 digits followed by V');
       setResults([]);
       return;
     }
@@ -35,8 +42,7 @@ const ManagerCustomerSearch: React.FC = () => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const resp = await axios.get('/api/manager/customers/search', {
-        params: { query: trimmed },
+      const resp = await axios.get(`/api/manager/customers/by-nic/${trimmed}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setResults(resp.data.customers || []);
@@ -60,7 +66,7 @@ const ManagerCustomerSearch: React.FC = () => {
       <div className="section-header">
         <div>
           {/* <h4>Search Customers</h4> */}
-          <p className="section-subtitle">Search by name or NIC within your branch</p>
+          <p className="section-subtitle">Search by NIC/Birth Certificate (exact) within your branch</p>
         </div>
       </div>
 
@@ -68,7 +74,7 @@ const ManagerCustomerSearch: React.FC = () => {
         <div className="search-row">
           <input
             type="text"
-            placeholder="Enter name or NIC..."
+            placeholder="Enter NIC/Birth Certificate (exact): 123456789V or 12 digits"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             // className="search-input"
@@ -97,7 +103,7 @@ const ManagerCustomerSearch: React.FC = () => {
             <div className="no-data">
               <div className="no-data-icon">🔎</div>
               <h5>No customers found</h5>
-              <p>Try a different name or NIC.</p>
+              <p>Try a different NIC.</p>
             </div>
           ) : (
             <div className="table-container">

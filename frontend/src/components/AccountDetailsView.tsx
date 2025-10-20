@@ -48,6 +48,7 @@ const AccountDetailsView: React.FC = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<AccountDetails | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<Account[]>([]);
   const [filteredAccounts, setFilteredAccounts] = useState<Account[]>([]);
   const [activeStatus, setActiveStatus] = useState<'All' | 'Active' | 'Closed'>('All');
   const [hasSearched, setHasSearched] = useState(false);
@@ -57,31 +58,50 @@ const AccountDetailsView: React.FC = () => {
     fetchAccounts();
   }, []);
 
-  // Filter accounts based on search term and status
+  // Apply status filter on top of search results
   useEffect(() => {
-    let results = accounts;
-
-    // Filter by search term
-    if (searchTerm.trim()) {
-      const q = searchTerm.trim().toLowerCase();
-      results = results.filter(account =>
-        account.account_id.toString().includes(q) ||
-        account.customer_nics?.toLowerCase().includes(q)
-      );
-    }
-
-    // Filter by status
+    let results = searchResults;
     if (activeStatus !== 'All') {
-      results = results.filter(account => 
-        account.account_status === activeStatus
-      );
+      results = results.filter(acc => acc.account_status === activeStatus);
+    }
+    setFilteredAccounts(results);
+  }, [searchResults, activeStatus]);
+
+  const handleSearch = async () => {
+    setHasSearched(true);
+    const term = searchTerm.trim().toUpperCase();
+    if (!term) {
+      setSearchResults([]);
+      return;
     }
 
-    setFilteredAccounts(results);
-  }, [searchTerm, activeStatus, accounts]);
+    const isAllDigits = /^[0-9]+$/.test(term);
+    const isTwelveDigitNic = /^[0-9]{12}$/.test(term);
+    const isOldNic = /^[0-9]{9}V$/.test(term);
 
-  const handleSearch = () => {
-    setHasSearched(true);
+    if (isAllDigits && !isTwelveDigitNic) {
+      // Exact Account ID match from the loaded list
+      const results = accounts.filter(a => a.account_id.toString() === term);
+      setSearchResults(results);
+      return;
+    }
+
+    if (isTwelveDigitNic || isOldNic) {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await axios.get(`/api/agent/accounts/by-nic/${term}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setSearchResults(res.data.accounts || []);
+      } catch (err: any) {
+        const msg = err?.response?.data?.message || 'Failed to search accounts';
+        alert(msg);
+        setSearchResults([]);
+      }
+      return;
+    }
+
+    alert('Enter a valid NIC (12 digits or 9 digits + V) or an Account ID');
   };
 
   const fetchAccounts = async () => {
@@ -191,7 +211,7 @@ const AccountDetailsView: React.FC = () => {
           <div className="search-box">
             <input
               type="text"
-              placeholder="Search by Account ID or Customer NIC..."
+              placeholder="Search by Account ID or exact NIC/Birth Certificate (e.g., 123456789V or 12 digits)"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="search-input"
@@ -239,7 +259,7 @@ const AccountDetailsView: React.FC = () => {
 
           {hasSearched && (
             <div className="results-count">
-              Showing {filteredAccounts.length} of {accounts.length} accounts
+              Showing {filteredAccounts.length} of {searchResults.length} accounts
             </div>
           )}
         </div>
@@ -250,9 +270,7 @@ const AccountDetailsView: React.FC = () => {
             {/* Accounts List */}
             <div className="accounts-list">
               <h5>Accounts List</h5>
-              {searchTerm.trim() === '' ? (
-                <div className="no-data">Enter a search term above and click Search.</div>
-              ) : filteredAccounts.length === 0 ? (
+              {filteredAccounts.length === 0 ? (
                 <div className="no-data">No accounts found matching your search criteria.</div>
               ) : (
                 <div className="accounts-grid">

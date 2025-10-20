@@ -613,7 +613,7 @@ exports.getCustomerActivityReport = async (req, res) => {
       LEFT JOIN takes tk ON c.customer_id = tk.customer_id
       LEFT JOIN account a ON tk.account_id = a.account_id
       LEFT JOIN transaction t ON a.account_id = t.account_id
-        AND t.time BETWEEN $1 AND $2
+        AND DATE(t.time) BETWEEN $1 AND $2
       GROUP BY c.customer_id, c.first_name, c.last_name
       HAVING COUNT(t.transaction_id) > 0
       ORDER BY net_balance DESC
