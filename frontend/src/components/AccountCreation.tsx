@@ -73,7 +73,7 @@ const AccountCreation: React.FC = () => {
   const [searchResults, setSearchResults] = useState<Customer[]>([]);
   const [showSearch, setShowSearch] = useState(false);
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
-  const [customerSearchResults, setCustomerSearchResults] = useState<Customer[]>([]);
+  const [customerSearchResult, setCustomerSearchResult] = useState<Customer | null>(null);
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
   
   // Stepper state for create flow
@@ -134,19 +134,28 @@ const AccountCreation: React.FC = () => {
     setAccountSearchResults(existingAccounts);
   }, [existingAccounts]);
   
-  // Search for customers
-  useEffect(() => {
-    if (customerSearchTerm.trim()) {
-      const results = customers.filter(customer => 
-        customer.first_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
-        customer.last_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
-        customer.nic.includes(customerSearchTerm)
-      );
-      setCustomerSearchResults(results.slice(0, 5)); // Limit to 5 results
-    } else {
-      setCustomerSearchResults([]);
+  // Exact NIC lookup handler
+  const lookupCustomerByNic = async () => {
+    const nic = customerSearchTerm.trim().toUpperCase();
+    if (!nic) return;
+    // Validate client-side: 12 digits or 9 digits + V
+    if (!/^([0-9]{12}|[0-9]{9}V)$/.test(nic)) {
+      alert('Enter a valid NIC/Birth Certificate number: 12 digits or 9 digits followed by V');
+      return;
     }
-  }, [customerSearchTerm, customers]);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get(`/api/agent/customers/by-nic/${nic}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const c: Customer = res.data.customer;
+      setCustomerSearchResult(c);
+    } catch (err: any) {
+      setCustomerSearchResult(null);
+      const msg = err?.response?.data?.message || 'Customer not found';
+      alert(msg);
+    }
+  };
 
   // Search for joint holders
   useEffect(() => {
@@ -205,28 +214,45 @@ const AccountCreation: React.FC = () => {
     }
   };
 
-  const searchAccount = () => {
+  const searchAccount = async () => {
     setHasSearched(true);
-    
-    if (!searchAccountId.trim()) {
-      // empty search should not show all accounts
+    const term = searchAccountId.trim().toUpperCase();
+
+    if (!term) {
       setAccountSearchResults([]);
       return;
     }
 
-    setIsSearching(true);
-    
-    // Simple client-side search (Manage tab): only by Account ID or Customer NIC
-    const term = searchAccountId.toLowerCase();
-    const results = existingAccounts.filter(account => {
-      const idMatch = account.account_id.toString().includes(term);
-      // Try to match NICs if provided; backend list may not include NICs per customer, so rely on substring search in names field only for NIC if embedded
-      const nicMatch = (account.customer_nics || '').toLowerCase().includes(term);
-      return idMatch || nicMatch;
-    });
-    
-    setAccountSearchResults(results);
-    setIsSearching(false);
+    // First, check NIC/BC formats: 12 digits OR 9 digits + 'V' (uppercase)
+    const isTwelveDigitNic = /^[0-9]{12}$/.test(term);
+    const isOldNic = /^[0-9]{9}V$/.test(term);
+
+    if (!isTwelveDigitNic && !isOldNic && /^[0-9]+$/.test(term)) {
+      // Numeric but not a 12-digit NIC -> treat as Account ID exact match
+      const results = existingAccounts.filter(acc => acc.account_id.toString() === term);
+      setAccountSearchResults(results);
+      return;
+    }
+
+    if (!isTwelveDigitNic && !isOldNic) {
+      alert('Enter a valid NIC/Birth Certificate number: 12 digits or 9 digits followed by V');
+      return;
+    }
+
+    try {
+      setIsSearching(true);
+      const token = localStorage.getItem('token');
+      const res = await axios.get(`/api/agent/accounts/by-nic/${term}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setAccountSearchResults(res.data.accounts || []);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Failed to search accounts';
+      alert(msg);
+      setAccountSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   const deactivateAccount = async (accountId: number, balance: number, customerNames: string) => {
@@ -292,7 +318,7 @@ const AccountCreation: React.FC = () => {
     try {
       setPlanChange(pc => ({ ...pc, isSubmitting: true }));
       const token = localStorage.getItem('token');
-      const response = await axios.post('/api/agent/accounts/change-plan', {
+      await axios.post('/api/agent/accounts/change-plan', {
         account_id: account.account_id,
         new_saving_plan_id: planChange.newSavingPlanId,
         reason: planChange.reason.trim(),
@@ -490,7 +516,7 @@ const AccountCreation: React.FC = () => {
     setSearchResults([]);
     setShowSearch(false);
     setCustomerSearchTerm('');
-    setCustomerSearchResults([]);
+  setCustomerSearchResult(null);
     setShowCustomerSearch(false);
     setErrors({});
     setCurrentStep(1);
@@ -543,7 +569,7 @@ const AccountCreation: React.FC = () => {
     }));
     setSelectedCustomer(customer);
     setCustomerSearchTerm('');
-    setCustomerSearchResults([]);
+  setCustomerSearchResult(null);
     setShowCustomerSearch(false);
     // Auto-select plan based on age bracket when customer is chosen
     const age = calculateAge(customer.date_of_birth);
@@ -703,10 +729,10 @@ const AccountCreation: React.FC = () => {
                 <React.Fragment key={step.number}>
                   <div className="step-item">
                     <div className={`step-circle ${
-                      currentStep > step.number || currentStep == 3 ? 'step-completed' :
+                      currentStep > step.number || currentStep === 3 ? 'step-completed' :
                       currentStep === step.number ? 'step-active' : 'step-inactive'
                     }`}>
-                      {currentStep > step.number|| currentStep == 3 ? <CheckIcon /> : step.number}
+                      {currentStep > step.number|| currentStep === 3 ? <CheckIcon /> : step.number}
                     </div>
                     <span className={`step-label ${
                       currentStep >= step.number ? 'step-label-active' : 'step-label-inactive'
@@ -772,7 +798,7 @@ const AccountCreation: React.FC = () => {
                         <div className="search-box">
                           <input
                             type="text"
-                            placeholder="Search by customer name or NIC/birth certificate number..."
+                            placeholder="Enter NIC/Birth Certificate (exact): 123456789V or 12 digits"
                             value={customerSearchTerm}
                             onChange={(e) => setCustomerSearchTerm(e.target.value)}
                             className="search-input"
@@ -780,43 +806,38 @@ const AccountCreation: React.FC = () => {
                           />
                           <button
                             type="button"
+                            className="btn btn-primary"
+                            onClick={lookupCustomerByNic}
+                            disabled={!customerSearchTerm.trim()}
+                          >
+                            Find
+                          </button>
+                          <button
+                            type="button"
                             className="btn btn-secondary"
                             onClick={() => {
                               setShowCustomerSearch(false);
                               setCustomerSearchTerm('');
-                              setCustomerSearchResults([]);
+                              setCustomerSearchResult(null);
                             }}
                           >
                             Cancel
                           </button>
                         </div>
                         
-                        {customerSearchResults.length > 0 && (
+                        {customerSearchResult && (
                           <div className="search-results">
-                            {customerSearchResults.map(customer => (
-                              <div 
-                                key={customer.customer_id} 
-                                className="search-result-item"
-                                onClick={() => selectCustomer(customer)}
-                              >
-                                <div className="customer-info">
-                                  <strong>{customer.first_name} {customer.last_name}</strong>
-                                  <span>ID: {customer.customer_id} | NIC: {customer.nic} | Age: {calculateAge(customer.date_of_birth)}</span>
-                                </div>
-                                <button
-                                  type="button"
-                                  className="btn btn-primary btn-sm"
-                                >
-                                  Select
-                                </button>
+                            <div 
+                              key={customerSearchResult.customer_id}
+                              className="search-result-item"
+                              onClick={() => selectCustomer(customerSearchResult)}
+                            >
+                              <div className="customer-info">
+                                <strong>{customerSearchResult.first_name} {customerSearchResult.last_name}</strong>
+                                <span>ID: {customerSearchResult.customer_id} | NIC: {customerSearchResult.nic} | Age: {calculateAge(customerSearchResult.date_of_birth)}</span>
                               </div>
-                            ))}
-                          </div>
-                        )}
-                        
-                        {customerSearchTerm && customerSearchResults.length === 0 && (
-                          <div className="no-results">
-                            No customers found matching your search.
+                              <button type="button" className="btn btn-primary btn-sm">Select</button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1247,7 +1268,7 @@ const AccountCreation: React.FC = () => {
             <div className="search-box">
               <input
                 type="text"
-                placeholder="Search by Account ID or Customer NIC..."
+                placeholder="Search by Account ID or exact NIC/Birth Certificate (e.g., 123456789V or 12 digits)"
                 value={searchAccountId}
                 onChange={(e) => setSearchAccountId(e.target.value)}
                 className="search-input"

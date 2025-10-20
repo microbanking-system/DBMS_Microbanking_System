@@ -267,7 +267,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customer_ids\": [1],\n  \"branch_id\": 1,\n  \"saving_plan_id\": 1,\n  \"initial_deposit\": 5000,\n  \"account_type\": \"single\"\n}"
+              "raw": "{\n  \"customer_id\": 1,\n  \"branch_id\": 1,\n  \"saving_plan_id\": 1,\n  \"initial_deposit\": 5000\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/agent/accounts/create",
@@ -292,7 +292,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customer_ids\": [1, 2],\n  \"branch_id\": 1,\n  \"saving_plan_id\": 1,\n  \"initial_deposit\": 10000,\n  \"account_type\": \"joint\"\n}"
+              "raw": "{\n  \"customer_id\": 1,\n  \"joint_holders\": [2],\n  \"branch_id\": 1,\n  \"saving_plan_id\": 1,\n  \"initial_deposit\": 10000\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/agent/accounts/create",
@@ -351,7 +351,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"account_id\": \"ACC001\",\n  \"new_saving_plan_id\": 2,\n  \"reason\": \"Customer requested plan upgrade\"\n}"
+              "raw": "{\n  \"account_id\": 1,\n  \"new_saving_plan_id\": 2,\n  \"reason\": \"Customer requested plan upgrade\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/agent/accounts/change-plan",
@@ -376,7 +376,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"account_id\": \"ACC001\",\n  \"reason\": \"Customer closing account\"\n}"
+              "raw": "{\n  \"account_id\": 1,\n  \"reason\": \"Customer closing account\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/agent/accounts/deactivate",
@@ -406,7 +406,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"account_id\": \"ACC001\",\n  \"transaction_type\": \"Deposit\",\n  \"amount\": 5000,\n  \"description\": \"Cash deposit\"\n}"
+              "raw": "{\n  \"account_id\": 1,\n  \"transaction_type\": \"Deposit\",\n  \"amount\": 5000,\n  \"description\": \"Cash deposit\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/agent/transactions/process",
@@ -431,7 +431,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"account_id\": \"ACC001\",\n  \"transaction_type\": \"Withdrawal\",\n  \"amount\": 2000,\n  \"description\": \"Cash withdrawal\"\n}"
+              "raw": "{\n  \"account_id\": 1,\n  \"transaction_type\": \"Withdrawal\",\n  \"amount\": 2000,\n  \"description\": \"Cash withdrawal\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/agent/transactions/process",
@@ -495,7 +495,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customer_id\": 1,\n  \"account_id\": \"ACC001\",\n  \"fd_plan_id\": 1,\n  \"principal_amount\": 50000,\n  \"auto_renewal_status\": true\n}"
+                "raw": "{\n  \"customer_id\": 1,\n  \"account_id\": 1,\n  \"fd_plan_id\": 1,\n  \"principal_amount\": 50000,\n  \"auto_renewal_status\": \"False\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/agent/fixed-deposits/create",
@@ -654,7 +654,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"branch_id\": \"BR005\",\n  \"name\": \"Galle Branch\",\n  \"contact_no_1\": \"0912222222\",\n  \"address\": \"45 Galle Road, Galle\",\n  \"email\": \"galle@btrust.lk\"\n}"
+              "raw": "{\n  \"name\": \"Galle Branch\",\n  \"contact_no_1\": \"0912222222\",\n  \"address\": \"45 Galle Road, Galle\",\n  \"email\": \"galle@btrust.lk\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/admin/branches",

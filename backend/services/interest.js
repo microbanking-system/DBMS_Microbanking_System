@@ -37,9 +37,10 @@ const processDailyFDInterest = async () => {
       if (calc.interest_amount > 0) {
         try {
           // Create transaction to credit interest
+          const systemActorId = parseInt(process.env.SYSTEM_ACTOR_EMPLOYEE_ID || '1', 10);
           await client.query(
             `SELECT create_transaction_with_validation($1, $2, $3, $4, $5)`,
-            ['Interest', calc.interest_amount, `Monthly FD Interest - ${calc.interest_rate}% Plan`, calc.linked_account_id, 1]
+            ['Interest', calc.interest_amount, `Monthly FD Interest - ${calc.interest_rate}% Plan`, calc.linked_account_id, systemActorId]
           );
           
           // Record the interest calculation
@@ -125,9 +126,10 @@ const processDailySavingsInterest = async () => {
       if (calc.interest_amount > 0) {
         try {
           // Create transaction to credit interest
+          const systemActorId = parseInt(process.env.SYSTEM_ACTOR_EMPLOYEE_ID || '1', 10);
           await client.query(
             `SELECT create_transaction_with_validation($1, $2, $3, $4, $5)`,
-            ['Interest', calc.interest_amount, `Monthly Savings Interest - ${calc.plan_type} Plan`, calc.account_id, 1]
+            ['Interest', calc.interest_amount, `Monthly Savings Interest - ${calc.plan_type} Plan`, calc.account_id, systemActorId]
           );
           
           // Record the interest calculation

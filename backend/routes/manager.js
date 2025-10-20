@@ -17,6 +17,12 @@ router.use(authorize('Manager', 'Admin'));
 router.get('/customers/search', managerController.searchCustomers);
 
 /**
+ * GET /api/manager/customers/by-nic/:nic
+ * Get customers by exact NIC/Birth Certificate number within manager's branch
+ */
+router.get('/customers/by-nic/:nic', managerController.getCustomersByNic);
+
+/**
  * GET /api/manager/team/agents
  * Get agents in manager's branch with performance data
  */

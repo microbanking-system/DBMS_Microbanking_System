@@ -187,6 +187,44 @@ exports.getCustomers = async (req, res) => {
 };
 
 /**
+ * Get single customer by NIC/Birth Certificate number (exact match)
+ * GET /api/agent/customers/by-nic/:nic
+ */
+exports.getCustomerByNic = async (req, res) => {
+  const rawNic = (req.params.nic || '').toString().trim();
+  const nic = rawNic.toUpperCase();
+
+  // Validate NIC/BC format: 12 digits or 9 digits + 'V'
+  if (!/^([0-9]{12}|[0-9]{9}V)$/.test(nic)) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Invalid NIC/BC format. Use 12 digits or 9 digits followed by V'
+    });
+  }
+
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT customer_id, first_name, last_name, nic, date_of_birth
+       FROM customer
+       WHERE nic = $1`,
+      [nic]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Customer not found' });
+    }
+
+    return res.json({ status: 'success', customer: result.rows[0] });
+  } catch (error) {
+    console.error('Database error:', error);
+    return res.status(500).json({ status: 'error', message: 'Database error' });
+  } finally {
+    client.release();
+  }
+};
+
+/**
  * Get customer details by ID
  * GET /api/agent/customers/:id
  */
@@ -250,16 +288,8 @@ exports.updateCustomer = async (req, res) => {
     });
   }
 
-  // Age validation
-  const dob = new Date(date_of_birth);
-  const today = new Date();
-  const age = today.getFullYear() - dob.getFullYear();
-  if (age < 18) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'Customer must be at least 18 years old'
-    });
-  }
+  // Note: No global age restriction here. Age constraints are enforced when creating
+  // or changing accounts based on the selected saving plan (e.g., Children/Teen/Adult/Senior).
 
   const client = await pool.connect();
   try {
@@ -317,6 +347,62 @@ exports.updateCustomer = async (req, res) => {
     client.release();
   }
 };
+
+/**
+ * Update customer contact details
+ * PUT /api/agent/customers/:id/contact
+ */
+exports.updateCustomerContact = async (req, res) => {
+  const { id } = req.params;
+  const { contact_no_1, contact_no_2, address, email } = req.body;
+
+  // Validation
+  if (!contact_no_1 || !address || !email) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Contact number, address, and email are required'
+    });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Get existing contact_id
+    const existing = await client.query('SELECT contact_id FROM customer WHERE customer_id = $1', [id]);
+    if (existing.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({
+        status: 'error',
+        message: 'Customer not found'
+      });
+    }
+    const { contact_id } = existing.rows[0];
+
+    // Update contact
+    await client.query(
+      `UPDATE contact SET contact_no_1 = $1, contact_no_2 = $2, address = $3, email = $4 WHERE contact_id = $5`,
+      [contact_no_1, contact_no_2 || null, address, email, contact_id]
+    );
+
+    await client.query('COMMIT');
+
+    res.json({
+      status: 'success',
+      message: 'Customer contact updated successfully'
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Database error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Database error: ' + error.message
+    });
+  } finally {
+    client.release();
+  }
+};
+ 
 
 /**
  * Create account for customer (with joint account support)
@@ -670,6 +756,86 @@ exports.getRecentTransactions = async (req, res) => {
 };
 
 /**
+ * Get full account details for view panel
+ * GET /api/agent/accounts/:id/details
+ */
+exports.getAccountDetails = async (req, res) => {
+  const { id } = req.params;
+  const client = await pool.connect();
+  try {
+    // Basic account + branch + plan
+    const accountResult = await client.query(
+      `SELECT 
+         a.account_id,
+         a.balance,
+         a.account_status,
+         a.open_date,
+         COALESCE(b.name, 'Unknown') AS branch_name,
+         COALESCE(sp.plan_type::text, 'Unknown') AS plan_type,
+         COALESCE(sp.interest, 0) AS interest,
+         COALESCE(sp.min_balance, 0) AS min_balance
+       FROM account a
+       LEFT JOIN branch b ON a.branch_id = b.branch_id
+       LEFT JOIN savingplan sp ON a.saving_plan_id = sp.saving_plan_id
+       WHERE a.account_id = $1`,
+      [id]
+    );
+
+    if (accountResult.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Account not found' });
+    }
+
+    const base = accountResult.rows[0];
+
+    // Customers linked to account
+    const customersResult = await client.query(
+      `SELECT c.customer_id, c.first_name, c.last_name, c.nic, c.date_of_birth
+       FROM takes t
+       JOIN customer c ON t.customer_id = c.customer_id
+       WHERE t.account_id = $1
+       ORDER BY c.last_name, c.first_name`,
+      [id]
+    );
+
+    // Recent transactions (last 20)
+    const txResult = await client.query(
+      `SELECT transaction_id, transaction_type, amount, time, description
+       FROM transaction
+       WHERE account_id = $1
+       ORDER BY time DESC
+       LIMIT 20`,
+      [id]
+    );
+
+    const account = {
+      account_id: base.account_id,
+      balance: parseFloat(base.balance),
+      account_status: base.account_status,
+      open_date: base.open_date,
+      branch_name: base.branch_name,
+      plan_type: base.plan_type,
+      interest: parseFloat(base.interest),
+      min_balance: parseFloat(base.min_balance),
+      customers: customersResult.rows,
+      transactions: txResult.rows.map(r => ({
+        transaction_id: r.transaction_id,
+        transaction_type: r.transaction_type,
+        amount: parseFloat(r.amount),
+        time: r.time,
+        description: r.description
+      }))
+    };
+
+    res.json({ status: 'success', account });
+  } catch (error) {
+    console.error('Database error:', error);
+    res.status(500).json({ status: 'error', message: 'Database error' });
+  } finally {
+    client.release();
+  }
+};
+
+/**
  * Create a fixed deposit
  * POST /api/agent/fixed-deposits/create
  */
@@ -682,6 +848,16 @@ exports.createFixedDeposit = async (req, res) => {
 
   if (principal_amount <= 0) {
     return res.status(400).json({ status: 'error', message: 'Principal amount must be greater than 0' });
+  }
+
+  // Normalize auto_renewal to DB enum ('True' | 'False')
+  let autoRenewalStr;
+  if (typeof auto_renewal_status === 'boolean') {
+    autoRenewalStr = auto_renewal_status ? 'True' : 'False';
+  } else if (typeof auto_renewal_status === 'string') {
+    autoRenewalStr = auto_renewal_status.toLowerCase() === 'true' ? 'True' : 'False';
+  } else {
+    autoRenewalStr = 'False';
   }
 
   const client = await pool.connect();
@@ -754,7 +930,7 @@ exports.createFixedDeposit = async (req, res) => {
       `INSERT INTO fixeddeposit (fd_balance, auto_renewal_status, fd_status, open_date, maturity_date, fd_plan_id)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING fd_id`,
-      [principal_amount, auto_renewal_status, 'Active', openDate, maturityDate, fd_plan_id]
+      [principal_amount, autoRenewalStr, 'Active', openDate, maturityDate, fd_plan_id]
     );
 
     const fdId = fdResult.rows[0].fd_id;
@@ -820,6 +996,59 @@ exports.searchFixedDeposits = async (req, res) => {
   } catch (error) {
     console.error('Database error:', error);
     res.status(500).json({ status: 'error', message: 'Database error' });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Get fixed deposits by exact customer NIC/Birth Certificate number
+ * GET /api/agent/fixed-deposits/by-nic/:nic
+ */
+exports.getFixedDepositsByNic = async (req, res) => {
+  const rawNic = (req.params.nic || '').toString().trim();
+  const nic = rawNic.toUpperCase();
+
+  if (!/^([0-9]{12}|[0-9]{9}V)$/.test(nic)) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Invalid NIC/BC format. Use 12 digits or 9 digits followed by V'
+    });
+  }
+
+  const client = await pool.connect();
+  try {
+    const result = await client.query(`
+      SELECT DISTINCT
+        fd.fd_id,
+        fd.fd_balance,
+        fd.fd_status,
+        fd.open_date,
+        fd.maturity_date,
+        fd.auto_renewal_status,
+        fp.fd_options,
+        fp.interest,
+        a.account_id,
+        STRING_AGG(DISTINCT c2.first_name || ' ' || c2.last_name, ', ') as customer_names,
+        STRING_AGG(DISTINCT c2.nic, ', ') as customer_nics
+      FROM fixeddeposit fd
+      JOIN fdplan fp ON fd.fd_plan_id = fp.fd_plan_id
+      JOIN account a ON fd.fd_id = a.fd_id
+      JOIN takes t ON a.account_id = t.account_id
+      JOIN customer c ON t.customer_id = c.customer_id
+      -- Filter by requested NIC on any holder of the linked savings account
+      JOIN takes t2 ON a.account_id = t2.account_id
+      JOIN customer c2 ON t2.customer_id = c2.customer_id
+      WHERE c.nic = $1
+      GROUP BY fd.fd_id, fd.fd_balance, fd.fd_status, fd.open_date, fd.maturity_date,
+               fd.auto_renewal_status, fp.fd_options, fp.interest, a.account_id
+      ORDER BY fd.fd_id DESC
+    `, [nic]);
+
+    return res.json({ status: 'success', fixed_deposits: result.rows });
+  } catch (error) {
+    console.error('Database error:', error);
+    return res.status(500).json({ status: 'error', message: 'Database error' });
   } finally {
     client.release();
   }
@@ -1032,6 +1261,32 @@ exports.changeAccountPlan = async (req, res) => {
 
     await client.query("SELECT set_config('app.actor_employee_id', $1, true)", [req.user.id.toString()]);
 
+    // Fetch current and target plan types to validate Teen -> Adult NIC requirement
+    const planInfoCurrent = await client.query(
+      `SELECT sp.plan_type
+       FROM account a
+       JOIN savingplan sp ON sp.saving_plan_id = a.saving_plan_id
+       WHERE a.account_id = $1`,
+      [Number(account_id)]
+    );
+    const planInfoTarget = await client.query(
+      'SELECT plan_type FROM savingplan WHERE saving_plan_id = $1',
+      [Number(new_saving_plan_id)]
+    );
+    if (planInfoCurrent.rows.length && planInfoTarget.rows.length) {
+      const oldType = planInfoCurrent.rows[0].plan_type;
+      const newType = planInfoTarget.rows[0].plan_type;
+      if (oldType === 'Teen' && newType === 'Adult') {
+        if (!new_nic || !/^([0-9]{12}|[0-9]{9}V)$/.test(String(new_nic).trim())) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({
+            status: 'error',
+            message: 'Valid NIC is required when upgrading Teen plan to Adult (use 12 digits or 9 digits followed by V)'
+          });
+        }
+      }
+    }
+
     await client.query('SELECT change_account_saving_plan($1, $2, $3, $4, $5)', [
       Number(account_id),
       Number(new_saving_plan_id),
@@ -1105,6 +1360,63 @@ exports.getAllAccounts = async (req, res) => {
       status: 'error',
       message: 'Database error'
     });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Get accounts by exact customer NIC/Birth Certificate number
+ * GET /api/agent/accounts/by-nic/:nic
+ */
+exports.getAccountsByCustomerNic = async (req, res) => {
+  const rawNic = (req.params.nic || '').toString().trim();
+  const nic = rawNic.toUpperCase();
+
+  if (!/^([0-9]{12}|[0-9]{9}V)$/.test(nic)) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Invalid NIC/BC format. Use 12 digits or 9 digits followed by V'
+    });
+  }
+
+  const client = await pool.connect();
+  try {
+    const result = await client.query(`
+      SELECT DISTINCT
+        a.account_id,
+        a.balance,
+        a.account_status,
+        a.open_date,
+        a.branch_id,
+        a.saving_plan_id,
+        a.fd_id,
+        sp.plan_type,
+        sp.interest,
+        sp.min_balance,
+        b.name as branch_name,
+        STRING_AGG(DISTINCT c2.first_name || ' ' || c2.last_name, ', ') as customer_names,
+        STRING_AGG(DISTINCT c2.nic, ', ') as customer_nics,
+        COUNT(DISTINCT t.customer_id) as customer_count
+      FROM account a
+      JOIN savingplan sp ON a.saving_plan_id = sp.saving_plan_id
+      JOIN branch b ON a.branch_id = b.branch_id
+      JOIN takes t ON a.account_id = t.account_id
+      JOIN customer c ON t.customer_id = c.customer_id
+      -- Filter by the requested NIC on any customer of the account
+      JOIN takes t2 ON a.account_id = t2.account_id
+      JOIN customer c2 ON t2.customer_id = c2.customer_id
+      WHERE c.nic = $1
+      GROUP BY a.account_id, a.balance, a.account_status, a.open_date, 
+               a.branch_id, a.saving_plan_id, a.fd_id,
+               sp.plan_type, sp.interest, sp.min_balance, b.name
+      ORDER BY a.account_id DESC
+    `, [nic]);
+
+    return res.json({ status: 'success', accounts: result.rows });
+  } catch (error) {
+    console.error('Database error:', error);
+    return res.status(500).json({ status: 'error', message: 'Database error' });
   } finally {
     client.release();
   }

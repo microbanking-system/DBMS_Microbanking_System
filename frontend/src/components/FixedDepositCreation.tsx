@@ -77,7 +77,7 @@ const FixedDepositCreation: React.FC = () => {
   
   // Customer search state
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
-  const [customerSearchResults, setCustomerSearchResults] = useState<Customer[]>([]);
+  const [customerSearchResult, setCustomerSearchResult] = useState<Customer | null>(null);
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
   
   // Stepper state
@@ -131,19 +131,30 @@ const FixedDepositCreation: React.FC = () => {
     }
   }, [existingFDs, hasSearched, searchFdId]);
 
-  // Search for customers
-  useEffect(() => {
-    if (customerSearchTerm.trim()) {
-      const results = customers.filter(customer => 
-        customer.first_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
-        customer.last_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
-        customer.nic.includes(customerSearchTerm)
-      );
-      setCustomerSearchResults(results.slice(0, 5)); // Limit to 5 results
-    } else {
-      setCustomerSearchResults([]);
+  // Exact NIC/BC lookup for customer selection
+  const lookupCustomerByNic = async () => {
+    const nic = customerSearchTerm.trim().toUpperCase();
+    if (!nic) return;
+
+    // Validate client-side: 12 digits or 9 digits + V
+    if (!/^([0-9]{12}|[0-9]{9}V)$/.test(nic)) {
+      alert('Enter a valid NIC/Birth Certificate number: 12 digits or 9 digits followed by V');
+      return;
     }
-  }, [customerSearchTerm, customers]);
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get(`/api/agent/customers/by-nic/${nic}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const c: Customer = res.data.customer;
+      setCustomerSearchResult(c);
+    } catch (err: any) {
+      setCustomerSearchResult(null);
+      const msg = err?.response?.data?.message || 'Customer not found';
+      alert(msg);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -186,30 +197,40 @@ const FixedDepositCreation: React.FC = () => {
 
   const searchFD = async () => {
     setHasSearched(true);
-    if (!searchFdId.trim()) {
-      // empty search should not show all FDs
+    const term = searchFdId.trim().toUpperCase();
+    if (!term) {
       setSearchResults([]);
       return;
     }
 
-    setIsSearching(true);
+    // Exact FD ID: numeric and not a 12-digit NIC
+    const isAllDigits = /^[0-9]+$/.test(term);
+    const isTwelveDigitNic = /^[0-9]{12}$/.test(term);
+    const isOldNic = /^[0-9]{9}V$/.test(term);
+
+    if (isAllDigits && !isTwelveDigitNic) {
+      // Filter client-side by exact FD ID if we have them cached
+      const results = existingFDs.filter(fd => fd.fd_id.toString() === term);
+      setSearchResults(results);
+      return;
+    }
+
+    if (!isTwelveDigitNic && !isOldNic) {
+      alert('Enter a valid NIC/Birth Certificate number: 12 digits or 9 digits followed by V');
+      return;
+    }
+
     try {
+      setIsSearching(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get(`/api/agent/fixed-deposits/search`, {
-        params: { query: searchFdId },
+      const response = await axios.get(`/api/agent/fixed-deposits/by-nic/${term}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setSearchResults(response.data.fixed_deposits);
+      setSearchResults(response.data.fixed_deposits || []);
     } catch (error: any) {
-      console.error('Search failed:', error);
-      // Client-side fallback: FD ID or NIC only
-      const searchTerm = searchFdId.toLowerCase();
-      const results = existingFDs.filter((fd: any) => {
-        const idMatch = fd.fd_id.toString().includes(searchTerm);
-        const nicMatch = (fd.customer_nics || '').toLowerCase().includes(searchTerm);
-        return idMatch || nicMatch;
-      });
-      setSearchResults(results);
+      const msg = error?.response?.data?.message || 'Failed to search fixed deposits';
+      alert(msg);
+      setSearchResults([]);
     } finally {
       setIsSearching(false);
     }
@@ -476,8 +497,8 @@ const FixedDepositCreation: React.FC = () => {
     setSelectedCustomer(null);
     setSelectedPlan(null);
     setSelectedAccount(null);
-    setCustomerSearchTerm('');
-    setCustomerSearchResults([]);
+  setCustomerSearchTerm('');
+  setCustomerSearchResult(null);
     setShowCustomerSearch(false);
     setErrors({});
     setCurrentStep(1);
@@ -520,7 +541,7 @@ const FixedDepositCreation: React.FC = () => {
     setSelectedCustomer(customer);
     setSelectedAccount(null);
     setCustomerSearchTerm('');
-    setCustomerSearchResults([]);
+    setCustomerSearchResult(null);
     setShowCustomerSearch(false);
     
     // Clear customer selection error
@@ -688,40 +709,47 @@ const FixedDepositCreation: React.FC = () => {
                           Search Customer
                         </button>
                       ) : (
-                        <div className="search-customer">
-                          <div className="search-box">
-                            <input
-                              type="text"
-                              placeholder="Search by customer name or NIC/birth certificate number..."
-                              value={customerSearchTerm}
-                              onChange={(e) => setCustomerSearchTerm(e.target.value)}
-                              className="search-input"
-                              autoFocus
-                            />
-                            <button
-                              type="button"
-                              className="btn btn-secondary"
-                              onClick={() => {
-                                setShowCustomerSearch(false);
-                                setCustomerSearchTerm('');
-                                setCustomerSearchResults([]);
-                              }}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                          
-                          {customerSearchResults.length > 0 && (
-                            <div className="search-results">
-                              {customerSearchResults.map(customer => (
+                          <div className="search-customer">
+                            <div className="search-box">
+                              <input
+                                type="text"
+                                placeholder="Enter NIC/Birth Certificate (exact): 123456789V or 12 digits"
+                                value={customerSearchTerm}
+                                onChange={(e) => setCustomerSearchTerm(e.target.value)}
+                                className="search-input"
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                className="btn btn-primary"
+                                onClick={lookupCustomerByNic}
+                                disabled={!customerSearchTerm.trim()}
+                              >
+                                Find
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-secondary"
+                                onClick={() => {
+                                  setShowCustomerSearch(false);
+                                  setCustomerSearchTerm('');
+                                  setCustomerSearchResult(null);
+                                }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+
+                            {customerSearchResult && (
+                              <div className="search-results">
                                 <div 
-                                  key={customer.customer_id} 
+                                  key={customerSearchResult.customer_id} 
                                   className="search-result-item"
-                                  onClick={() => selectCustomer(customer)}
+                                  onClick={() => selectCustomer(customerSearchResult)}
                                 >
                                   <div className="customer-info">
-                                    <strong>{customer.first_name} {customer.last_name}</strong>
-                                    <span>ID: {customer.customer_id} | NIC: {customer.nic} | Age: {calculateAge(customer.date_of_birth)}</span>
+                                    <strong>{customerSearchResult.first_name} {customerSearchResult.last_name}</strong>
+                                    <span>ID: {customerSearchResult.customer_id} | NIC: {customerSearchResult.nic} | Age: {calculateAge(customerSearchResult.date_of_birth)}</span>
                                   </div>
                                   <button
                                     type="button"
@@ -730,16 +758,9 @@ const FixedDepositCreation: React.FC = () => {
                                     Select
                                   </button>
                                 </div>
-                              ))}
-                            </div>
-                          )}
-                          
-                          {customerSearchTerm && customerSearchResults.length === 0 && (
-                            <div className="no-results">
-                              No customers found matching your search.
-                            </div>
-                          )}
-                        </div>
+                              </div>
+                            )}
+                          </div>
                       )}
                     </div>
                   )}
@@ -1101,7 +1122,7 @@ const FixedDepositCreation: React.FC = () => {
             <div className="search-box">
               <input
                 type="text"
-                placeholder="Search by FD Account ID or Holder NIC..."
+                placeholder="Search by FD Account ID or exact NIC/Birth Certificate (e.g., 123456789V or 12 digits)"
                 value={searchFdId}
                 onChange={(e) => setSearchFdId(e.target.value)}
                 className="search-input"

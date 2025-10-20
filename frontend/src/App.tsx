@@ -6,8 +6,8 @@ import LoginRegister from './components/LoginRegister';
 import ProtectedRoute from './components/ProtectedRoute';
 import './App.css';
 
-// Set axios base URL
-axios.defaults.baseURL = 'http://localhost:5000';
+// Set axios base URL from env with fallback for local dev
+axios.defaults.baseURL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
 
 // Add axios interceptor to include token in requests
 axios.interceptors.request.use((config) => {

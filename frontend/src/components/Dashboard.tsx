@@ -14,7 +14,6 @@ import Reports from './Reports';
 import TeamManagement from './TeamManagement';
 import TransactionReports from './TransactionReports';
 import CustomerAccounts from './CustomerAccounts';
-import ManagerCustomerSearch from './ManagerCustomerSearch';
 import Footer from './Footer';
 import bankLogo from '../assets/imgs/B_Trust_logo_white.png';
 
@@ -59,7 +58,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
 
   const [managerActiveSection, setManagerActiveSection] = useState<string>(() => {
     const saved = localStorage.getItem('managerDashboard.activeSection');
-    return saved || 'overview';
+    // If previous saved value is 'overview' or empty, default to 'customers'
+    if (!saved || saved === 'overview') return 'customers';
+    return saved;
   });
 
   // Save active sections to localStorage
@@ -168,10 +169,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   ];
 
   const managerMenuItems = [
+
     {
-      id: 'overview',
-      label: 'Overview',
-      icon: (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>)
+      id: 'customers',
+      label: 'Customer Accounts',
+      icon: (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"></path></svg>)
     },
     {
       id: 'team',
@@ -183,16 +185,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       label: 'Transaction Summary',
       icon: (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>)
     },
-    {
-      id: 'customers',
-      label: 'Customer Accounts',
-      icon: (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"></path></svg>)
-    },
-    {
-      id: 'customer-search',
-      label: 'Customer Details',
-      icon: (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>)
-    }
+    
+    
   ];
 
   // Get current menu items and active section based on role
@@ -250,36 +244,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
     
     if (user.role === 'Manager') {
       switch (managerActiveSection) {
-        case 'overview': return (
-          <div className="dashboard-overview">
-            <div className="dashboard-cards">
-              <div className="card">
-                <h3>Team Management</h3>
-                <p>Manage your agents and view their performance</p>
-                <button onClick={() => setManagerActiveSection('team')}>Manage Team</button>
-              </div>
-              <div className="card">
-                <h3>Transaction Reports</h3>
-                <p>View branch transactions and agent-wise reports</p>
-                <button onClick={() => setManagerActiveSection('transactions')}>View Transactions</button>
-              </div>
-              <div className="card">
-                <h3>Customer Accounts</h3>
-                <p>Manage customer accounts in your branch</p>
-                <button onClick={() => setManagerActiveSection('customers')}>Manage Accounts</button>
-              </div>
-              <div className="card">
-                <h3>Search Customers</h3>
-                <p>Find customers by name or NIC in your branch</p>
-                <button onClick={() => setManagerActiveSection('customer-search')}>Search</button>
-              </div>
-            </div>
-          </div>
-        );
         case 'team': return <TeamManagement />;
         case 'transactions': return <TransactionReports />;
         case 'customers': return <CustomerAccounts />;
-        case 'customer-search': return <ManagerCustomerSearch />;
         default: return null;
       }
     }

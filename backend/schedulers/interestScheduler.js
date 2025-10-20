@@ -20,7 +20,7 @@ const { processDailyFDInterest, processDailySavingsInterest } = require('../serv
  * - '0 3 * * *'    : Every day at 3:00 AM
  * - '30 3 * * *'   : Every day at 3:30 AM
  * - '* * * * *'    : Every minute (DEBUG mode)
- * - '0 *6 * * *'  : Every 6 hours**/
+**/
 const startInterestSchedulers = () => {
   const debug = process.env.INTEREST_CRON_DEBUG === '1';
 

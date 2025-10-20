@@ -49,10 +49,11 @@ exports.validateCustomerRegistration = [
     .notEmpty().withMessage('Last name is required')
     .isLength({ min: 2 }).withMessage('Last name must be at least 2 characters')
     .matches(/^[a-zA-Z\s]+$/).withMessage('Last name can only contain letters'),
+  // NIC or Birth Certificate number (both stored in `nic` field)
   body('nic')
     .trim()
-    .notEmpty().withMessage('NIC is required')
-    .matches(/^([0-9]{9}[vVxX]|[0-9]{12})$/).withMessage('Invalid NIC format (must be 9 digits + V/X or 12 digits)'),
+    .notEmpty().withMessage('NIC/Birth Certificate number is required')
+    .matches(/^([0-9]{12}|[0-9]{9}V)$/).withMessage('Invalid NIC/Birth Certificate format (use 12 digits or 9 digits followed by V)'),
   body('gender')
     .notEmpty().withMessage('Gender is required')
     .isIn(['Male', 'Female', 'Other']).withMessage('Gender must be Male, Female, or Other'),
@@ -189,7 +190,14 @@ exports.validateFDCreation = [
       return true;
     }),
   body('auto_renewal_status')
-    .isBoolean().withMessage('Auto renewal status must be true or false'),
+    .custom((val) => {
+      if (typeof val === 'boolean') return true;
+      if (typeof val === 'string') {
+        const v = val.toLowerCase();
+        if (v === 'true' || v === 'false') return true;
+      }
+      throw new Error('Auto renewal status must be boolean true/false or "True"/"False"');
+    }),
   validate
 ];
 
@@ -207,9 +215,7 @@ exports.validateEmployeeRegistration = [
     .matches(/^[a-zA-Z0-9_]+$/).withMessage('Username can only contain letters, numbers, and underscores'),
   body('password')
     .notEmpty().withMessage('Password is required')
-    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
-    .withMessage('Password must contain uppercase, lowercase, number, and special character'),
+    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('first_name')
     .trim()
     .notEmpty().withMessage('First name is required')
@@ -221,7 +227,7 @@ exports.validateEmployeeRegistration = [
   body('nic')
     .trim()
     .notEmpty().withMessage('NIC is required')
-    .matches(/^([0-9]{9}[vVxX]|[0-9]{12})$/).withMessage('Invalid NIC format'),
+    .matches(/^([0-9]{9}V|[0-9]{12})$/).withMessage('Invalid NIC format (must be 12 digits or 9 digits followed by V)'),
   body('gender')
     .notEmpty().withMessage('Gender is required')
     .isIn(['Male', 'Female', 'Other']).withMessage('Gender must be Male, Female, or Other'),

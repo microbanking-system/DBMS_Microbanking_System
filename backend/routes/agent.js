@@ -29,6 +29,12 @@ router.post('/customers/register', agentController.registerCustomer);
 router.get('/customers', agentController.getCustomers);
 
 /**
+ * GET /api/agent/customers/by-nic/:nic
+ * Get a single customer by NIC/Birth Certificate number (exact)
+ */
+router.get('/customers/by-nic/:nic', agentController.getCustomerByNic);
+
+/**
  * GET /api/agent/customers/:id
  * Get customer details by ID
  */
@@ -41,6 +47,12 @@ router.get('/customers/:id', agentController.getCustomerById);
 router.put('/customers/:id', agentController.updateCustomer);
 
 /**
+ * PUT /api/agent/customers/:id/contact
+ * Update customer contact details only
+ */
+router.put('/customers/:id/contact', agentController.updateCustomerContact);
+
+/**
  * POST /api/agent/accounts/create
  * Create a new account for customer
  */
@@ -51,6 +63,12 @@ router.post('/accounts/create', agentController.createAccount);
  * Get active accounts for transaction processing
  */
 router.get('/accounts', agentController.getAccounts);
+
+/**
+ * GET /api/agent/accounts/:id/details
+ * Get full details for a specific account
+ */
+router.get('/accounts/:id/details', agentController.getAccountDetails);
 
 /**
  * GET /api/agent/performance
@@ -75,6 +93,12 @@ router.post('/fixed-deposits/create', agentController.createFixedDeposit);
  * Search fixed deposits
  */
 router.get('/fixed-deposits/search', agentController.searchFixedDeposits);
+
+/**
+ * GET /api/agent/fixed-deposits/by-nic/:nic
+ * Get fixed deposits by exact NIC/Birth Certificate number
+ */
+router.get('/fixed-deposits/by-nic/:nic', agentController.getFixedDepositsByNic);
 
 /**
  * POST /api/agent/fixed-deposits/deactivate
@@ -105,6 +129,12 @@ router.post('/accounts/change-plan', agentController.changeAccountPlan);
  * Get all accounts with full details (for management/viewing)
  */
 router.get('/all-accounts', agentController.getAllAccounts);
+
+/**
+ * GET /api/agent/accounts/by-nic/:nic
+ * Get accounts for a customer by NIC/Birth Certificate number (exact)
+ */
+router.get('/accounts/by-nic/:nic', agentController.getAccountsByCustomerNic);
 
 /**
  * GET /api/agent/accounts-with-fd

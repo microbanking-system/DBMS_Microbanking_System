@@ -48,10 +48,15 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Create token
+    // Create token using required secret
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      console.error('JWT_SECRET is not set in environment');
+      return res.status(500).json({ status: 'error', message: 'Server configuration error' });
+    }
     const token = jwt.sign(
       { id: user.employee_id, role: user.role },
-      process.env.JWT_SECRET || 'hey',
+      secret,
       { expiresIn: '1h' }
     );
 
