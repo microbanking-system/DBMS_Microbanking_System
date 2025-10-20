@@ -10,7 +10,9 @@ interface ManagerDashboardProps {
 const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ sidebarCollapsed }) => {
   const [activeSection, setActiveSection] = useState<string>(() => {
     const saved = localStorage.getItem('managerDashboard.activeSection');
-    return saved || 'overview';
+      // Map any old 'overview' saved value to 'customers'
+      if (!saved || saved === 'overview') return 'customers';
+      return saved;
   });
 
   useEffect(() => {
@@ -18,18 +20,6 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ sidebarCollapsed })
   }, [activeSection]);
 
   const menuItems = [
-    {
-      id: 'overview',
-      label: 'Overview',
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="3" width="7" height="7"></rect>
-          <rect x="14" y="3" width="7" height="7"></rect>
-          <rect x="14" y="14" width="7" height="7"></rect>
-          <rect x="3" y="14" width="7" height="7"></rect>
-        </svg>
-      )
-    },
     {
       id: 'team',
       label: 'Team Management',
@@ -103,28 +93,6 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ sidebarCollapsed })
         </header>
 
         <div className="content-body">
-          {activeSection === 'overview' && (
-            <div className="dashboard-overview">
-              <div className="dashboard-cards">
-                <div className="card">
-                  <h3>Team Management</h3>
-                  <p>Manage your agents and view their performance</p>
-                  <button className='btn-back' onClick={() => setActiveSection('team')}>Manage Team</button>
-                </div>
-                <div className="card">
-                  <h3>Transaction Reports</h3>
-                  <p>View branch transactions and agent-wise reports</p>
-                  <button className='btn-back' onClick={() => setActiveSection('transactions')}>View Transactions</button>
-                </div>
-                <div className="card">
-                  <h3>Customer Accounts</h3>
-                  <p>Manage customer accounts in your branch</p>
-                  <button className='btn-back' onClick={() => setActiveSection('customers')}>Manage Accounts</button>
-                </div>
-                
-              </div>
-            </div>
-          )}
           {activeSection === 'team' && <TeamManagement />}
           {activeSection === 'transactions' && <TransactionReports />}
           {activeSection === 'customers' && <CustomerAccounts />}

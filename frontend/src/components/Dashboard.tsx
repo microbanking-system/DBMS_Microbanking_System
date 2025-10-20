@@ -58,7 +58,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
 
   const [managerActiveSection, setManagerActiveSection] = useState<string>(() => {
     const saved = localStorage.getItem('managerDashboard.activeSection');
-    return saved || 'overview';
+    // If previous saved value is 'overview' or empty, default to 'customers'
+    if (!saved || saved === 'overview') return 'customers';
+    return saved;
   });
 
   // Save active sections to localStorage
@@ -167,11 +169,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   ];
 
   const managerMenuItems = [
-    {
-      id: 'overview',
-      label: 'Overview',
-      icon: (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>)
-    },
+    
     {
       id: 'team',
       label: 'Team Management',
@@ -245,31 +243,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
     
     if (user.role === 'Manager') {
       switch (managerActiveSection) {
-        case 'overview': return (
-          <div className="dashboard-overview">
-            <div className="dashboard-cards">
-              <div className="card">
-                <h3>Team Management</h3>
-                <p>Manage your agents and view their performance</p>
-                <button onClick={() => setManagerActiveSection('team')}>Manage Team</button>
-              </div>
-              <div className="card">
-                <h3>Transaction Reports</h3>
-                <p>View branch transactions and agent-wise reports</p>
-                <button onClick={() => setManagerActiveSection('transactions')}>View Transactions</button>
-              </div>
-              <div className="card">
-                <h3>Customer Accounts</h3>
-                <p>Manage customer accounts in your branch</p>
-                <button onClick={() => setManagerActiveSection('customers')}>Manage Accounts</button>
-              </div>
-              
-            </div>
-          </div>
-        );
         case 'team': return <TeamManagement />;
         case 'transactions': return <TransactionReports />;
-  case 'customers': return <CustomerAccounts />;
+        case 'customers': return <CustomerAccounts />;
         default: return null;
       }
     }
