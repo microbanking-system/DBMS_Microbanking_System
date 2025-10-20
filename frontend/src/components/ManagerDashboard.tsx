@@ -93,9 +93,10 @@ const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ sidebarCollapsed })
         </header>
 
         <div className="content-body">
+          
+          {activeSection === 'customers' && <CustomerAccounts />}
           {activeSection === 'team' && <TeamManagement />}
           {activeSection === 'transactions' && <TransactionReports />}
-          {activeSection === 'customers' && <CustomerAccounts />}
           
         </div>
       </div>

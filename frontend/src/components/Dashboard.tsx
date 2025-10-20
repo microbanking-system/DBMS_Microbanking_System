@@ -169,7 +169,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   ];
 
   const managerMenuItems = [
-    
+
+    {
+      id: 'customers',
+      label: 'Customer Accounts',
+      icon: (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"></path></svg>)
+    },
     {
       id: 'team',
       label: 'Team Management',
@@ -180,11 +185,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       label: 'Transaction Summary',
       icon: (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>)
     },
-    {
-      id: 'customers',
-      label: 'Customer Accounts',
-      icon: (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"></path></svg>)
-    },
+    
     
   ];
 
