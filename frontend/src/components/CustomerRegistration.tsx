@@ -47,6 +47,8 @@ const CustomerRegistration: React.FC = () => {
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [customerId, setCustomerId] = useState('');
+  const [editSearchNIC, setEditSearchNIC] = useState('');
+  // const [editSearchName, setEditSearchName] = useState('');
   
   const [formData, setFormData] = useState<CustomerFormData>({
     first_name: '',
@@ -230,16 +232,18 @@ const CustomerRegistration: React.FC = () => {
     }
   }, [activeTab, editFetched]);
 
-  const filteredEditCustomers = useMemo(() => {
-    const q = editSearch.trim().toLowerCase();
-    if (!editHasSearched || !q) return [];
-    return editCustomers.filter(c =>
-      c.customer_id.toString().includes(q) ||
-      c.first_name.toLowerCase().includes(q) ||
-      c.last_name.toLowerCase().includes(q) ||
-      `${c.first_name} ${c.last_name}`.toLowerCase().includes(q)
-    );
-  }, [editCustomers, editSearch, editHasSearched]);
+  // Replace the filteredEditCustomers useMemo:
+    const filteredEditCustomers = useMemo(() => {
+    if (!editHasSearched) return [];
+    
+    const nicQuery = editSearchNIC.trim();
+    
+    // Must have NIC query
+    if (!nicQuery) return [];
+    
+    // Exact match only for security
+    return editCustomers.filter(c => c.nic === nicQuery);
+  }, [editCustomers, editHasSearched]);
 
   const loadEditDetails = async (id: number) => {
     setEditLoading(true);
@@ -289,7 +293,7 @@ const CustomerRegistration: React.FC = () => {
   };
 
   const clearEdit = () => {
-    setEditSearch('');
+    setEditSearchNIC('');
     setEditHasSearched(false);
     setEditSelectedId(null);
     setEditDetails(null);
@@ -555,7 +559,8 @@ const CustomerRegistration: React.FC = () => {
         </div>
       )}
 
-      {activeTab === 'edit' && (
+     {/* code for edit customers */}
+     {activeTab === 'edit' && (
         <div className="customer-edit">
           <div className="section-header">
             <div>
@@ -567,12 +572,12 @@ const CustomerRegistration: React.FC = () => {
           <div className="search-row">
             <input
               type="text"
-              value={editSearch}
-              onChange={(e) => setEditSearch(e.target.value)}
+              value={editSearchNIC}
+              onChange={(e) => setEditSearchNIC(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') setEditHasSearched(true); }}
-              placeholder="Search by Customer ID or name"
+              placeholder="Enter complete NIC number (e.g., 947012345V)"
             />
-            <button className="btn-next" onClick={() => setEditHasSearched(true)}>Search</button>
+            <button className="btn-next" onClick={() => {setEditHasSearched(false); setTimeout(() => setEditHasSearched(true), 0);}}>Search</button>
             <button className="btn-back" onClick={clearEdit}>Clear</button>
           </div>
 
@@ -582,7 +587,7 @@ const CustomerRegistration: React.FC = () => {
                 {filteredEditCustomers.length === 0 ? (
                   <div className="no-data">
                     <h5>No matching customers</h5>
-                    <p>Try a different ID or name</p>
+                    <p>Please enter the complete NIC number</p>
                   </div>
                 ) : (
                   <ul className="simple-list">
