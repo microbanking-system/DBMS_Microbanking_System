@@ -410,14 +410,14 @@ const BranchManagement: React.FC = () => {
               <div className="form-actions">
                 <button 
                   type="button" 
-                  className="btn btn-secondary"
+                  className="btn-back"
                   onClick={clearForm}
                 >
                   Cancel
                 </button>
                 <button 
                   type="submit" 
-                  className="btn btn-primary"
+                  className="btn-next"
                   disabled={isLoading}
                 >
                   {isLoading ? (

@@ -1002,23 +1002,50 @@ button, input, select, textarea, label {
 
 /* Responsive Stepper */
 @media (max-width: 768px) {
+  /* Stepper - Keep in horizontal line */
+  .stepper {
+    padding: var(--spacing-md) var(--spacing-sm);
+  }
+
   .stepper-line-container {
+    flex-direction: row;
+    gap: 0;
+    padding: 0;
+    overflow-x: auto;
+    justify-content: flex-start;
+  }
+
+  .step-item {
     flex-direction: column;
-    gap: var(--spacing-md);
+    gap: var(--spacing-xs);
+    width: auto;
+    align-items: center;
+    justify-content: flex-start;
+    min-width: 70px;
+    flex-shrink: 0;
   }
 
   .step-line {
-    display: none;
+    display: block;
+    min-width: 30px;
+    max-width: 50px;
+    margin-top: 18px;
   }
 
   .step-label {
-    font-size: var(--font-size-xs);
+    font-size: 0.7rem;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 80px;
   }
 
   .step-circle {
     width: 36px;
     height: 36px;
-    font-size: var(--font-size-sm);
+    font-size: 0.9rem;
+    flex-shrink: 0;
   }
 
   .detail-row {
@@ -1033,10 +1060,74 @@ button, input, select, textarea, label {
 
   .stepper-actions {
     flex-wrap: wrap;
+    gap: var(--spacing-sm);
   }
 
   .stepper-actions .btn {
     min-width: 80px;
+    font-size: 0.85rem;
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  /* Tabs responsive styles */
+  .tabs {
+    flex-direction: row;
+    margin: var(--spacing-md) var(--spacing-sm);
+    gap: var(--spacing-xs);
+  }
+
+  .tab, .tab-btn {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.9rem;
+    margin: 0 var(--spacing-xs);
+  }
+}
+
+/* Extra small devices (phones in portrait mode) */
+@media (max-width: 576px) {
+  .stepper {
+    padding: var(--spacing-sm);
+  }
+
+  .step-item {
+    min-width: 60px;
+  }
+
+  .step-circle {
+    width: 32px;
+    height: 32px;
+    font-size: 0.85rem;
+  }
+
+  .step-label {
+    font-size: 0.65rem;
+    max-width: 70px;
+  }
+
+  .step-line {
+    min-width: 20px;
+    max-width: 35px;
+    margin-top: 15px;
+  }
+
+  .stepper-actions {
+    padding: var(--spacing-sm);
+    gap: var(--spacing-xs);
+  }
+
+  .stepper-actions .btn {
+    font-size: 0.8rem;
+    padding: 8px 12px;
+  }
+
+  /* Tabs for extra small screens */
+  .tabs {
+    margin: var(--spacing-sm);
+    gap: var(--spacing-xs);
+  }
+
+  .tab, .tab-btn {
+    padding: var(--spacing-xs) var(--spacing-sm);
     font-size: 0.85rem;
   }
 }
@@ -9275,7 +9366,7 @@ select:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+  background: linear-gradient(135deg, var(--primary-color) 100%, var(--secondary-color) 100%);
   color: white;
   flex-shrink: 0;
 }

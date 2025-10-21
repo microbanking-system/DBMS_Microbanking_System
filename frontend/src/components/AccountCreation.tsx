@@ -860,7 +860,7 @@ const AccountCreation: React.FC = () => {
                 </button>
                 <button 
                   type="button" 
-                  className="btn-danger"
+                  className="btn-back"
                   onClick={resetForm}
                   disabled={currentStep === 1}
                 >

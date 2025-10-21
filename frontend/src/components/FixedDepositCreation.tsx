@@ -721,7 +721,7 @@ const FixedDepositCreation: React.FC = () => {
                               />
                               <button
                                 type="button"
-                                className="btn btn-primary"
+                                className="btn-next"
                                 onClick={lookupCustomerByNic}
                                 disabled={!customerSearchTerm.trim()}
                               >
@@ -729,7 +729,7 @@ const FixedDepositCreation: React.FC = () => {
                               </button>
                               <button
                                 type="button"
-                                className="btn btn-secondary"
+                                className="btn-back"
                                 onClick={() => {
                                   setShowCustomerSearch(false);
                                   setCustomerSearchTerm('');
@@ -834,7 +834,7 @@ const FixedDepositCreation: React.FC = () => {
                 </button>
                 <button 
                   type="button" 
-                  className="btn-danger"
+                  className="btn-back"
                   onClick={resetForm}
                   disabled={currentStep === 1}
                 >
@@ -957,7 +957,7 @@ const FixedDepositCreation: React.FC = () => {
                 </button>
                 <button 
                   type="button" 
-                  className="btn-danger"
+                  className="btn-back"
                   onClick={resetForm}
                   disabled={isLoading}
                 >
@@ -1102,7 +1102,7 @@ const FixedDepositCreation: React.FC = () => {
               <div className="form-actions stepper-actions" style={{justifyContent: 'center'}}>
                 <button 
                   type="button" 
-                  className="btn btn-primary btn-lg"
+                  className="btn-next"
                   onClick={resetForm}
                   style={{minWidth: '200px'}}
                 >
