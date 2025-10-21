@@ -500,11 +500,11 @@ BEGIN
       AND a.account_status = 'Active'
       -- PRODUCTION LOGIC (30 days = 1 month): Uncomment when deploying to production
       AND p_as_of_date >= COALESCE(last_fd.last_credited_date, fd.open_date) + INTERVAL '30 days';
-      -- TESTING LOGIC (1 minute = 1 month): Comment out when deploying to production
+    -- TESTING LOGIC (30 seconds = 1 month): Comment out when deploying to production
     --   AND CURRENT_TIMESTAMP >= COALESCE(
     --       (SELECT MAX(fic2.credited_at) FROM fd_interest_calculations fic2 WHERE fic2.fd_id = fd.fd_id AND fic2.status = 'credited'),
     --       fd.open_date::TIMESTAMP
-    --   ) + INTERVAL '1 minute';
+    --   ) + INTERVAL '30 seconds';
 END;
 $$ LANGUAGE plpgsql;
 
@@ -542,11 +542,11 @@ BEGIN
       AND a.balance >= sp.min_balance
       -- PRODUCTION LOGIC (30 days = 1 month): Uncomment when deploying to production
       AND p_as_of_date >= COALESCE(last_s.last_credited_date, a.open_date) + INTERVAL '30 days';
-    --   TESTING LOGIC (1 minute = 1 month): Comment out when deploying to production
+    --   TESTING LOGIC (30 seconds = 1 month): Comment out when deploying to production
     --   AND CURRENT_TIMESTAMP >= COALESCE(
     --       (SELECT MAX(sic2.credited_at) FROM savings_interest_calculations sic2 WHERE sic2.account_id = a.account_id AND sic2.status = 'credited'),
     --       a.open_date::TIMESTAMP
-    --   ) + INTERVAL '1 minute';
+    --   ) + INTERVAL '30 seconds';
 END;
 $$ LANGUAGE plpgsql;
 

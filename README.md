@@ -41,13 +41,42 @@ Create a `.env` file in `backend/` with at least:
 - DB_NAME=microbanking
 - DB_USER=postgres
 - DB_PASSWORD=yourpassword
-- SUPPRESS_GENERAL_LOGS=0              # Optional; set 1 to suppress HTTP logs
-- INTEREST_CRON_DEBUG=0                # Optional; 1 = run schedulers every minute
-- FD_INTEREST_CRON=0 3 * * *           # Optional; defaults used if omitted
-- SAVINGS_INTEREST_CRON=30 3 * * *     # Optional; defaults used if omitted
-- SYSTEM_ACTOR_EMPLOYEE_ID=1           # Optional; employee id for automated interest credits
+ INTEREST_CRON_DEBUG=0                # Optional; 1 = run schedulers every 10 seconds (debug)
+ FD_INTEREST_CRON=0 3 * * *           # Optional; defaults used if omitted (supports seconds field)
+ SAVINGS_INTEREST_CRON=30 3 * * *     # Optional; defaults used if omitted (supports seconds field)
+ Interest schedulers:
+ 	- For fast local testing set `INTEREST_CRON_DEBUG=1` (runs every 10 seconds in debug mode).
+ 	- Database demo mapping uses 30 seconds ≈ 1 month between credits; running the cron every 30 seconds gives a clear "once-per-cycle" demo.
+ 	- You can override schedules via `FD_INTEREST_CRON` and `SAVINGS_INTEREST_CRON` to match 30s cadence.
+ 	- Production uses 30‑day cycles per-account based on last credited/open date.
 
-Frontend env (`frontend/.env`):
+ Interest scheduler details (cron)
+ - Location: `backend/schedulers/interestScheduler.js` (uses `node-cron`).
+ - Defaults if no env vars set and not in debug:
+ 	- FD interest: `0 3 * * *` (every day at 03:00)
+ 	- Savings interest: `30 3 * * *` (every day at 03:30)
+ - Debug mode for demos/tests:
+ 	- Set `INTEREST_CRON_DEBUG=1` to run both FD & Savings every 10 seconds.
+ 	- Under the hood it uses a 6‑field cron with seconds: `*/10 * * * * *`.
+ 	- Note: The DB testing logic credits at most once every 30 seconds per account/FD; you may prefer a 30‑second cron for a 1:1 demo cadence.
+ - Custom schedules via env vars (seconds supported with 6‑field format):
+ 	- `FD_INTEREST_CRON` and `SAVINGS_INTEREST_CRON` accept expressions like:
+ 		- Every 10 seconds: `*/10 * * * * *`
+ 		- Every 30 seconds: `*/30 * * * * *`
+ 		- Daily at 03:00: `0 3 * * *`
+ 		- Daily at 03:30: `30 3 * * *`
+ - Examples (Linux/bash):
+ 	- Run backend in debug (10s cadence for both):
+ 		- `export INTEREST_CRON_DEBUG=1 && npm run dev --prefix backend`
+ 	- Override without debug (10s cadence):
+ 		- `export FD_INTEREST_CRON="*/10 * * * * *" && export SAVINGS_INTEREST_CRON="*/10 * * * * *" && npm run dev --prefix backend`
+ 	- Override without debug (30s cadence to match DB demo window):
+ 		- `export FD_INTEREST_CRON="*/30 * * * * *" && export SAVINGS_INTEREST_CRON="*/30 * * * * *" && npm run dev --prefix backend`
+
+ Database demo window
+ - In `database/init-postgres.sql`, testing logic sets credit eligibility to once every 30 seconds (per account/FD):
+   - `calculate_fd_interest_due` and `calculate_savings_interest_due` use `INTERVAL '30 seconds'` in demo mode.
+ - For production, switch to the 30‑day interval by uncommenting the 30‑day lines and commenting out the testing lines as indicated in the SQL file.
 - REACT_APP_API_BASE_URL=http://localhost:5000
 
 Quick start (local)
