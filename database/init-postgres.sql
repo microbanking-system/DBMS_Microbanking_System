@@ -113,6 +113,60 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- =============================================================================
+-- Utility procedures: Employee status management
+-- =============================================================================
+
+-- -----------------------------------------------------------------------------
+-- Simple procedures (CALL) for status changes
+-- -----------------------------------------------------------------------------
+
+-- 10 deactivates 5 (For Employees)
+-- CALL proc_deactivate_employee(5, 10); 
+-- Activate Employees
+-- CALL proc_activate_employee(5);
+
+-- Deactivate employee (no return). Blocks self-deactivation.
+CREATE OR REPLACE PROCEDURE proc_deactivate_employee(
+    p_employee_id INTEGER,
+    p_actor_employee_id INTEGER
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_exists BOOLEAN;
+BEGIN
+    IF p_employee_id = p_actor_employee_id THEN
+        RAISE EXCEPTION 'You cannot deactivate your own account.' USING ERRCODE = '22023';
+    END IF;
+
+    SELECT TRUE INTO v_exists FROM employee WHERE employee_id = p_employee_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Employee % not found', p_employee_id USING ERRCODE = '02000';
+    END IF;
+
+    UPDATE employee SET employee_status = 'Inactive' WHERE employee_id = p_employee_id;
+END;
+$$;
+
+-- Activate employee (no return)
+CREATE OR REPLACE PROCEDURE proc_activate_employee(
+    p_employee_id INTEGER
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_exists BOOLEAN;
+BEGIN
+    SELECT TRUE INTO v_exists FROM employee WHERE employee_id = p_employee_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Employee % not found', p_employee_id USING ERRCODE = '02000';
+    END IF;
+
+    UPDATE employee SET employee_status = 'Active' WHERE employee_id = p_employee_id;
+END;
+$$;
+
 DO $$
 BEGIN
     IF EXISTS (
