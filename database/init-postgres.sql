@@ -422,37 +422,6 @@ EXCEPTION
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to calculate FD interest for a specific period
-CREATE OR REPLACE FUNCTION calculate_fd_interest_period(
-    p_period_start DATE,
-    p_period_end DATE
-) RETURNS TABLE(
-    fd_id INTEGER,
-    principal_amount DECIMAL(15,2),
-    interest_rate DECIMAL(5,2),
-    interest_amount DECIMAL(15,2),
-    days_in_period INTEGER,
-    linked_account_id INTEGER
-) AS $$
-BEGIN
-    RETURN QUERY
-    SELECT 
-        fd.fd_id,
-        fd.fd_balance as principal_amount,
-        fp.interest as interest_rate,
-        -- Fixed 30-day monthly cycle for interest calculation
-        ROUND((fd.fd_balance * (fp.interest/100) * (30.0/365.0))::NUMERIC, 2) as interest_amount,
-        30 as days_in_period,
-        a.account_id as linked_account_id
-    FROM fixeddeposit fd
-    JOIN fdplan fp ON fd.fd_plan_id = fp.fd_plan_id
-    JOIN account a ON fd.fd_id = a.fd_id
-    WHERE fd.fd_status = 'Active'
-      AND fd.open_date <= p_period_end
-            AND (fd.maturity_date IS NULL OR fd.maturity_date >= p_period_start)
-        AND a.account_status = 'Active';
-END;
-$$ LANGUAGE plpgsql;
 
 -- Function to process matured FDs
 CREATE OR REPLACE FUNCTION process_matured_fixed_deposits() 
@@ -520,34 +489,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to calculate savings interest for a period
-CREATE OR REPLACE FUNCTION calculate_savings_interest_period(
-    p_period_start DATE,
-    p_period_end DATE
-) RETURNS TABLE(
-    account_id INTEGER,
-    balance DECIMAL(15,2),
-    interest_rate DECIMAL(5,2),
-    interest_amount DECIMAL(15,2),
-    plan_type VARCHAR(20),
-    min_balance DECIMAL(10,2)
-) AS $$
-BEGIN
-    RETURN QUERY
-    SELECT 
-        a.account_id,
-        a.balance,
-        sp.interest as interest_rate,
-        -- Fixed 30-day monthly cycle for interest calculation
-        ROUND((a.balance * (sp.interest/100) * (30.0/365.0))::NUMERIC, 2) as interest_amount,
-        sp.plan_type::VARCHAR,
-        sp.min_balance
-    FROM account a
-    JOIN savingplan sp ON a.saving_plan_id = sp.saving_plan_id
-    WHERE a.account_status = 'Active'
-        AND a.balance >= sp.min_balance;
-END;
-$$ LANGUAGE plpgsql;
 
 -- Function to calculate FD interest due on a per-account 30-day cycle (anchored to open_date or last credited date)
 CREATE OR REPLACE FUNCTION calculate_fd_interest_due(
