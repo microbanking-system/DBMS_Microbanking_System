@@ -992,39 +992,125 @@ CREATE TRIGGER trigger_customer_contact_audit
     EXECUTE FUNCTION audit_customer_contact_changes();
 
 -- =============================================================================
--- OPTIMIZATION: Materialized Views for Reporting
+-- REPORTING VIEWS (replacing unused materialized views)
 -- =============================================================================
 
--- Materialized view for daily account summaries
-CREATE MATERIALIZED VIEW IF NOT EXISTS mv_daily_account_summary AS
-SELECT 
-    a.account_id,
-    a.balance,
-    a.account_status,
-    sp.plan_type,
-    COUNT(t.transaction_id) as transaction_count,
-    SUM(CASE WHEN t.transaction_type = 'Deposit' THEN t.amount ELSE 0 END) as total_deposits,
-    SUM(CASE WHEN t.transaction_type = 'Withdrawal' THEN t.amount ELSE 0 END) as total_withdrawals,
-    MAX(t.time) as last_transaction_date
-FROM account a
-JOIN savingplan sp ON a.saving_plan_id = sp.saving_plan_id
-LEFT JOIN transaction t ON a.account_id = t.account_id 
-    AND t.time >= CURRENT_DATE - INTERVAL '30 days'
-GROUP BY a.account_id, a.balance, a.account_status, sp.plan_type;
+-- Cleanup: drop legacy materialized views and refresh function if they exist
+DROP MATERIALIZED VIEW IF EXISTS mv_daily_account_summary CASCADE;
+DROP MATERIALIZED VIEW IF EXISTS mv_fd_performance CASCADE;
+DROP FUNCTION IF EXISTS refresh_materialized_views();
 
--- Materialized view for FD performance
-CREATE MATERIALIZED VIEW IF NOT EXISTS mv_fd_performance AS
+-- View: Enriched transactions with handy derived columns
+CREATE OR REPLACE VIEW v_transaction_enriched AS
+SELECT
+    t.transaction_id,
+    t.transaction_type,
+    t.amount,
+    t.time,
+    t.account_id,
+    t.employee_id,
+    e.first_name || ' ' || e.last_name AS employee_name,
+    a.branch_id,
+    CASE WHEN t.transaction_type = 'Deposit' THEN t.amount ELSE 0 END AS deposit_amount,
+    CASE WHEN t.transaction_type = 'Withdrawal' THEN t.amount ELSE 0 END AS withdrawal_amount,
+        CASE 
+            WHEN t.transaction_type IN ('Deposit', 'Interest') THEN t.amount 
+            WHEN t.transaction_type = 'Withdrawal' THEN -t.amount 
+            ELSE 0 
+        END AS net_value
+FROM transaction t
+LEFT JOIN employee e ON e.employee_id = t.employee_id
+LEFT JOIN account a ON a.account_id = t.account_id;
+
+-- View: Account to customer full names (aggregated)
+CREATE OR REPLACE VIEW v_account_customers AS
+SELECT
+    a.account_id,
+    STRING_AGG(DISTINCT c.first_name || ' ' || c.last_name, ', ') AS customer_names
+FROM account a
+JOIN takes tk ON tk.account_id = a.account_id
+JOIN customer c ON c.customer_id = tk.customer_id
+GROUP BY a.account_id;
+
+-- View: Active Fixed Deposit overview (with next interest date)
+CREATE OR REPLACE VIEW v_active_fd_overview AS
+WITH last_credited AS (
+    SELECT fd_id, MAX(calculation_date) AS last_date
+    FROM fd_interest_calculations
+    WHERE status = 'credited'
+    GROUP BY fd_id
+)
 SELECT 
-    fp.fd_options,
-    COUNT(fd.fd_id) as active_count,
-    SUM(fd.fd_balance) as total_principal,
-    AVG(fp.interest) as avg_interest_rate,
-    COUNT(fic.id) as interest_payments_count,
-    COALESCE(SUM(fic.interest_amount), 0) as total_interest_paid
-FROM fdplan fp
-LEFT JOIN fixeddeposit fd ON fp.fd_plan_id = fd.fd_plan_id AND fd.fd_status = 'Active'
-LEFT JOIN fd_interest_calculations fic ON fd.fd_id = fic.fd_id AND fic.status = 'credited'
-GROUP BY fp.fd_options, fp.fd_plan_id;
+    fd.fd_id,
+    a.account_id,
+    (
+      SELECT STRING_AGG(DISTINCT c.first_name || ' ' || c.last_name, ', ')
+      FROM takes t2
+      JOIN customer c ON c.customer_id = t2.customer_id
+      WHERE t2.account_id = a.account_id
+    ) AS customer_names,
+    fd.fd_balance,
+    fp.interest AS interest_rate,
+    fd.open_date,
+    fd.maturity_date,
+    fd.auto_renewal_status,
+    (COALESCE(l.last_date, fd.open_date) + INTERVAL '30 days')::date AS next_interest_date
+FROM fixeddeposit fd
+JOIN fdplan fp ON fd.fd_plan_id = fp.fd_plan_id
+JOIN account a ON fd.fd_id = a.fd_id
+LEFT JOIN last_credited l ON l.fd_id = fd.fd_id
+WHERE fd.fd_status = 'Active'
+GROUP BY fd.fd_id, a.account_id, fd.fd_balance, fp.interest, fd.open_date, fd.maturity_date, fd.auto_renewal_status, l.last_date;
+
+-- View: Monthly interest summary (FD and Savings)
+CREATE OR REPLACE VIEW v_monthly_interest_summary AS
+SELECT 
+    'Fixed Deposit'::text AS plan_type,
+    fp.fd_options::text AS account_type,
+    EXTRACT(MONTH FROM fic.credited_at)::int AS month,
+    EXTRACT(YEAR FROM fic.credited_at)::int AS year,
+    COALESCE(SUM(fic.interest_amount), 0)::numeric AS total_interest,
+    COUNT(DISTINCT fic.fd_id)::int AS account_count,
+    COALESCE(ROUND(AVG(fic.interest_amount), 2), 0)::numeric AS average_interest
+FROM fd_interest_calculations fic
+JOIN fixeddeposit fd ON fic.fd_id = fd.fd_id
+JOIN fdplan fp ON fd.fd_plan_id = fp.fd_plan_id
+WHERE fic.status = 'credited'
+GROUP BY fp.fd_options, EXTRACT(MONTH FROM fic.credited_at), EXTRACT(YEAR FROM fic.credited_at)
+
+UNION ALL
+
+SELECT 
+    'Savings'::text AS plan_type,
+    sic.plan_type::text AS account_type,
+    EXTRACT(MONTH FROM sic.credited_at)::int AS month,
+    EXTRACT(YEAR FROM sic.credited_at)::int AS year,
+    COALESCE(SUM(sic.interest_amount), 0)::numeric AS total_interest,
+    COUNT(DISTINCT sic.account_id)::int AS account_count,
+    COALESCE(ROUND(AVG(sic.interest_amount), 2), 0)::numeric AS average_interest
+FROM savings_interest_calculations sic
+WHERE sic.status = 'credited'
+GROUP BY sic.plan_type, EXTRACT(MONTH FROM sic.credited_at), EXTRACT(YEAR FROM sic.credited_at);
+
+-- View: Customer and their transactions (enriched)
+CREATE OR REPLACE VIEW v_customer_transaction_enriched AS
+SELECT 
+    c.customer_id,
+    c.first_name || ' ' || c.last_name AS customer_name,
+    a.account_id,
+    t.transaction_id,
+    t.time::date AS transaction_date,
+    CASE WHEN t.transaction_type = 'Deposit' THEN t.amount ELSE 0 END AS deposit_amount,
+    CASE WHEN t.transaction_type = 'Withdrawal' THEN t.amount ELSE 0 END AS withdrawal_amount,
+        CASE 
+            WHEN t.transaction_type IN ('Deposit', 'Interest') THEN t.amount 
+            WHEN t.transaction_type = 'Withdrawal' THEN -t.amount 
+            ELSE 0 
+        END AS net_value
+FROM customer c
+LEFT JOIN takes tk ON c.customer_id = tk.customer_id
+LEFT JOIN account a ON tk.account_id = a.account_id
+LEFT JOIN transaction t ON a.account_id = t.account_id;
 
 -- =============================================================================
 -- OPTIMIZATION: Indexes
@@ -1071,9 +1157,7 @@ CREATE INDEX IF NOT EXISTS idx_active_accounts
 ON account(account_id) 
 WHERE account_status = 'Active';
 
-CREATE INDEX IF NOT EXISTS idx_recent_transactions 
-ON transaction(time DESC) 
-WHERE time > CURRENT_DATE - INTERVAL '30 days';
+-- Removed: idx_recent_transactions (partial index using CURRENT_DATE is not IMMUTABLE)
 
 CREATE INDEX IF NOT EXISTS idx_interest_calculations_date 
 ON fd_interest_calculations(calculation_date, status);
@@ -1082,8 +1166,7 @@ CREATE INDEX IF NOT EXISTS idx_savings_interest_account_date
 ON savings_interest_calculations(account_id, calculation_date, status);
 
 -- Materialized view indexes
-CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_daily_account_summary ON mv_daily_account_summary(account_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_fd_performance ON mv_fd_performance(fd_options);
+-- (Removed materialized view indexes as materialized views are no longer used)
 
 -- Constraints
 ALTER TABLE account ADD CONSTRAINT unique_fd_per_account UNIQUE (fd_id);
@@ -1094,10 +1177,4 @@ CREATE INDEX IF NOT EXISTS idx_account_fd_id ON Account(fd_id);
 -- Refresh materialized views function
 -- =============================================================================
 
-CREATE OR REPLACE FUNCTION refresh_materialized_views()
-RETURNS VOID AS $$
-BEGIN
-    REFRESH MATERIALIZED VIEW CONCURRENTLY mv_daily_account_summary;
-    REFRESH MATERIALIZED VIEW CONCURRENTLY mv_fd_performance;
-END;
-$$ LANGUAGE plpgsql;
+-- (Removed refresh_materialized_views() because materialized views were removed)
