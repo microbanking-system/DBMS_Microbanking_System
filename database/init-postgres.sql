@@ -12,6 +12,15 @@ CREATE TYPE plan_type AS ENUM ('Children', 'Teen', 'Adult', 'Senior', 'Joint');
 CREATE TYPE auto_renewal_status_type AS ENUM ('True', 'False');
 CREATE TYPE fd_status_type AS ENUM ('Active', 'Matured', 'Closed');
 CREATE TYPE employee_role AS ENUM ('Manager', 'Agent', 'Admin');
+-- Employee status type (Active/Inactive)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_type WHERE typname = 'employee_status_type'
+    ) THEN
+        CREATE TYPE employee_status_type AS ENUM ('Active', 'Inactive');
+    END IF;
+END $$;
 CREATE TYPE fd_options_type AS ENUM ('6 months', '1 year', '3 years');
 CREATE TYPE transaction_type AS ENUM ('Deposit', 'Withdrawal', 'Interest');
 
@@ -78,6 +87,7 @@ CREATE TABLE IF NOT EXISTS Employee (
     date_of_birth DATE NOT NULL,
     branch_id INTEGER NOT NULL,
     contact_id INTEGER NOT NULL,
+    employee_status employee_status_type NOT NULL DEFAULT 'Active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (branch_id) REFERENCES Branch(branch_id) ON DELETE RESTRICT,
     FOREIGN KEY (contact_id) REFERENCES Contact(contact_id) ON DELETE RESTRICT,
@@ -157,6 +167,24 @@ CREATE TABLE IF NOT EXISTS Account (
 -- Ensure columns exist for previously initialized databases
 -- Keep closed_at as metadata for when accounts are closed
 ALTER TABLE account ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP;
+
+-- Ensure employee_status column exists (default Active)
+DO $$
+BEGIN
+    -- Create type if missing (safety in case earlier block was skipped)
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_type WHERE typname = 'employee_status_type'
+    ) THEN
+        CREATE TYPE employee_status_type AS ENUM ('Active', 'Inactive');
+    END IF;
+    -- Add column if not exists
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'employee' AND column_name = 'employee_status'
+    ) THEN
+        EXECUTE 'ALTER TABLE employee ADD COLUMN employee_status employee_status_type NOT NULL DEFAULT ''Active'' ';
+    END IF;
+END $$;
 
 -- Backward compatibility: widen NIC fields if older schema exists
 DO $$

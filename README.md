@@ -20,6 +20,7 @@ Recent changes (policy, data integrity, UX)
 - Backend: Exact NIC endpoints added for Agent and Manager UIs (see API overview below).
 - Reports: All date‑range reports use inclusive end dates by comparing `DATE(t.time) BETWEEN startDate AND endDate`.
 - Frontend: Customer/Account/FD searches changed to exact NIC/BC and/or ID only (no fuzzy name matching in those flows).
+ - Employees: Hard delete removed. Admins can now Activate/Deactivate employees. Inactive employees cannot log in. Self‑deactivation is blocked.
 
 Architecture
 - Backend service in `backend/` and frontend app in `frontend/`.
@@ -116,6 +117,7 @@ API overview (selected)
 - Auth: `/api/auth/login`
 - Admin:
 	- Users/Branches CRUD
+		- Users: `GET /api/admin/users`, `POST /api/admin/register`, `PATCH /api/admin/users/:id/status` (body: `{ "status": "Active" | "Inactive" }`), `DELETE /api/admin/users/:id` (alias for deactivation)
 	- Reports (all inclusive date range):
 		- `/api/admin/reports/agent-transactions?startDate&endDate`
 		- `/api/admin/reports/account-summaries?startDate&endDate`
